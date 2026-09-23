@@ -1,6 +1,8 @@
 ![PrusaSlicer logo](/resources/icons/PrusaSlicer_128px.png)
 
-# PrusaSlicer
+# PrusaSlicer — Rotatrix Build
+
+Unofficial PrusaSlicer build with Rotatrix integration. This build is not an official Prusa Research release.
 
 PrusaSlicer enables you to take your 3D models, generate 3D printing instructions and send them to your 3D printer. It supports both FDM 3D printers and mSLA 3D printers. It is developed by [Prusa Research](https://www.prusa3d.com/) and apart from Prusa printers it supports machines from a wide variety of manufacturers.
 

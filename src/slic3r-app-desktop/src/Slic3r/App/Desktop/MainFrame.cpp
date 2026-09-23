@@ -162,7 +162,7 @@ MainFrame::MainFrame(
     Navigator& navigator,
     std::shared_ptr<ProjectSaver> project_saver
 ) :
-    wxFrame(nullptr, wxID_ANY, from_u8(::Slic3r::BUILD_ID), wxDefaultPosition,wxDefaultSize,
+    wxFrame(nullptr, wxID_ANY, from_u8(std::string(SLIC3R_APP_DISPLAY_NAME) + " (" + ::Slic3r::BUILD_ID + ")"), wxDefaultPosition,wxDefaultSize,
         wxDEFAULT_FRAME_STYLE, from_u8("mainframe")),
     m_workbench(workbench),
     m_project_interactor(project_interactor),

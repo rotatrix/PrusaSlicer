@@ -237,7 +237,7 @@ void SplashScreen::Decorate(wxBitmap& bmp)
 
     memDc.SetFont(m_constant_text.version_font);
     memDc.DrawLabel(m_constant_text.version, banner_rect, wxALIGN_TOP | wxALIGN_CENTER_HORIZONTAL);
-    int version_height = memDc.GetTextExtent(m_constant_text.version).GetY();
+    int version_height = memDc.GetMultiLineTextExtent(m_constant_text.version).GetY();
     banner_rect.SetTop(banner_rect.GetTop() + version_height + margin);
 
     // save remained place for the text with application state
@@ -276,7 +276,7 @@ void SplashScreen::ConstantText::init(const wxFont& init_font, bool is_editor, i
 
     // dynamically get the version to display
     // TRN: {} is a placeholder for version number
-    version = from_u8(fmt::format(fmt::runtime(Biz::_u8L("Version {}")), SLIC3R_VERSION));
+    version = from_u8("Rotatrix Build\n" + fmt::format(fmt::runtime(Biz::_u8L("Version {}")), SLIC3R_VERSION));
 
     // credits information
     std::string credits_str = fmt::format(
@@ -296,7 +296,7 @@ void SplashScreen::ConstantText::init(const wxFont& init_font, bool is_editor, i
         Biz::_u8L("Developed by Prusa Research."),
         Biz::_u8L("Licensed under GNU AGPLv3.")
     );
-    credits = from_u8(credits_str);
+    credits = from_u8("Unofficial PrusaSlicer build\nwith Rotatrix integration.\n\n" + credits_str);
 
     // Use a temporary DC to measure text extents with the correct fonts.
     wxMemoryDC memDC;

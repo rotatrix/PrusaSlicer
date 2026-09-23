@@ -8,6 +8,8 @@
   <string>@SLIC3R_APP_NAME@ Copyright (C) 2011-2019 Alessandro Ranellucci, (C) 2016-2026 Prusa Research</string>
   <key>CFBundleIconFile</key>
   <string>PrusaSlicer.icns</string>
+  <key>CFBundleDisplayName</key>
+  <string>@SLIC3R_APP_DISPLAY_NAME@</string>
   <key>CFBundleName</key>
   <string>@SLIC3R_APP_KEY@</string>
   <key>CFBundleShortVersionString</key>

@@ -1,5 +1,6 @@
 [Desktop Entry]
-Name=PrusaSlicer (@SLIC3R_BUILD_ID@)
+Name=@SLIC3R_APP_DISPLAY_NAME@ (@SLIC3R_BUILD_ID@)
+Comment=Unofficial PrusaSlicer build with Rotatrix integration
 GenericName=3D Printing Software
 Icon=com.prusa3d.PrusaSlicer
 Exec=/app/bin/slic3r-app-launcher --single-instance-on-url %u
