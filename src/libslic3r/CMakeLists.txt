@@ -490,7 +490,7 @@ target_link_libraries(libslic3r PUBLIC
     slic3r-biz-parser
 )
 
-if (APPLE)
+if (APPLE AND SLIC3R_ENABLE_FORMAT_STEP)
     # TODO: we need to fix notarization with the separate shared library
     target_link_libraries(libslic3r PUBLIC OCCTWrapper)
 endif ()
