@@ -61,7 +61,7 @@ jobs:
       - name: Build dependencies (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: .github/scripts/windows-build.ps1 deps *>&1 | Tee-Object ci-logs/deps.log
+        run: .github/scripts/windows-build.ps1 deps *>&1 | Tee-Object "$env:GITHUB_WORKSPACE/ci-logs/deps.log"
       - name: Save dependency build
         if: steps.deps-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@v4
@@ -74,14 +74,14 @@ jobs:
       - name: Build and test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: .github/scripts/windows-build.ps1 build *>&1 | Tee-Object ci-logs/build.log
+        run: .github/scripts/windows-build.ps1 build *>&1 | Tee-Object "$env:GITHUB_WORKSPACE/ci-logs/build.log"
       - name: Package and smoke test (Unix)
         if: runner.os != 'Windows'
         run: bash .github/scripts/${{ matrix.script }}-build.sh package 2>&1 | tee ci-logs/package.log
       - name: Package and smoke test (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
-        run: .github/scripts/windows-build.ps1 package *>&1 | Tee-Object ci-logs/package.log
+        run: .github/scripts/windows-build.ps1 package *>&1 | Tee-Object "$env:GITHUB_WORKSPACE/ci-logs/package.log"
       - name: Upload package
         uses: actions/upload-artifact@v4
         with:

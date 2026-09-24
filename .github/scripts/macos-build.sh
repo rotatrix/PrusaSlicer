@@ -96,7 +96,7 @@ package() {
     "$app/Contents/MacOS/$executable" --datadir "$BUILD_DIR/smoke-datadir" --help
     archive="$DIST_DIR/PrusaSlicer-Rotatrix-macos-arm64-${revision:0:8}.zip"
     ditto -c -k --sequesterRsrc "$staging" "$archive"
-    shasum -a 256 "$archive" > "$archive.sha256"
+    (cd "$DIST_DIR" && shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256")
     echo "Packaged $archive"
 }
 
