@@ -53,6 +53,8 @@ jobs:
         with:
           path: deps/build-ci
           key: deps-v1-${{ matrix.runner }}-${{ runner.arch }}-cmake3316-${{ hashFiles('deps/**', 'cmake/modules/AddCMakeProject.cmake', 'cmake/modules/OSXDeploymentTarget.cmake', '.github/scripts/*-build.*') }}
+          restore-keys: |
+            deps-v1-${{ matrix.runner }}-${{ runner.arch }}-cmake3316-
       - name: Build dependencies (Unix)
         if: runner.os != 'Windows'
         run: bash .github/scripts/${{ matrix.script }}-build.sh deps 2>&1 | tee ci-logs/deps.log
@@ -102,4 +104,5 @@ jobs:
             build-ci/CMakeFiles/CMakeConfigureLog.yaml
             deps/build-ci/CMakeFiles/CMakeConfigureLog.yaml
             build-ci/openaxis-checks/Testing/Temporary/LastTest.log
+            build-ci/openaxis-tests/Testing/Temporary/LastTest.log
           retention-days: 14

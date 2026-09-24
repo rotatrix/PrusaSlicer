@@ -36,6 +36,8 @@ Linux prerequisites are listed in the workflow. Scripts accept `DEPS_BUILD_DIR`,
 Use a fresh packaging output directory. CMake is pinned in the workflow. The
 dependency cache includes platform and dependency/script hashes, and is saved
 after dependencies succeed so an application failure does not discard it.
+An older cache for the same platform and CMake version can seed a changed build;
+the dependency configure/build steps always run to bring it up to date.
 
 Build stages run the standalone OpenAxis viewport tests. Packaging runs the
 staged executable's CLI help; Linux also slices a cube. These do not verify GUI
