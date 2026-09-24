@@ -1,4 +1,7 @@
 #include "Slic3r/App/Plater/PlaterRenderModule.hpp"
+#ifdef SLIC3R_OPENAXIS
+#include "Slic3r/App/Plater/OpenAxisController.hpp"
+#endif
 
 #include "Slic3r/Directories.hpp"
 #include "Slic3r/Domain/Bed.hpp"
@@ -589,6 +592,16 @@ void PlaterRenderModule::init_scene_layout()
         *m_project_saver,
         &m_plugin_system
     );
+#ifdef SLIC3R_OPENAXIS
+    // Extend the existing Help menu after its normal ordering is established.
+    m_menu_manager.register_menu_item(
+        {MenuItemName::MainMenu, MenuItemName::Help, std::string("OpenAxis Diagnostics...")},
+        std::make_unique<UIItemCommand>("openaxis-diagnostics", [this] {
+            m_openaxis_diagnostics_visible = true;
+            request_render();
+        })
+    );
+#endif
 
     m_object_list = Passthrough(std::make_unique<ObjectListWindow>(&m_project_interactor, true));
     m_object_list->set_gizmo_controller(m_gizmo_manager.get());
@@ -641,6 +654,11 @@ void PlaterRenderModule::init_scene_layout()
         m_preset_updater_dialog.release()
     ));
     m_layout->init();
+#if defined(SLIC3R_OPENAXIS) && !defined(USE_NATIVE_MENU)
+    // Menu replacement queues removals, so the top bar must belong to the
+    // layout's root before refreshing the added diagnostics entry.
+    m_top_bar->on_menu_updated();
+#endif
 
     // init toolbars
 
@@ -1232,7 +1250,13 @@ void PlaterRenderModule::render_scene(Render::CommandBuffer& cmd_buffer)
     cmd_buffer.set_clear_values({0.61f, 0.61f, 0.61f, 1.00f});
     cmd_buffer.clear_buffers(true, true);
 
+#ifdef SLIC3R_OPENAXIS
+    m_scene_presenter->render_scene(cmd_buffer, [this](Render::CommandBuffer &buffer) {
+        if (m_openaxis) m_openaxis->render_indicator(*m_device, buffer, m_screen_info);
+    });
+#else
     m_scene_presenter->render_scene(cmd_buffer);
+#endif
 
     m_gizmo_manager->render_scene(cmd_buffer);
 
@@ -1242,6 +1266,11 @@ void PlaterRenderModule::render_scene(Render::CommandBuffer& cmd_buffer)
 void PlaterRenderModule::render_imgui(Render::CommandBuffer& cmd_buffer)
 {
     ZoneScoped;
+#ifdef SLIC3R_OPENAXIS
+    if (m_openaxis) {
+        m_openaxis->render_diagnostics(m_openaxis_diagnostics_visible);
+    }
+#endif
 
     if (!m_scene_presenter->project_ready())
         return;
@@ -1336,6 +1365,18 @@ void PlaterRenderModule::on_scene_keyboard_event(const Platform::KeyboardEvent& 
     }
 }
 
+#ifdef SLIC3R_OPENAXIS
+void PlaterRenderModule::on_navigation_event(std::shared_ptr<openaxis::Scheduler> scheduler, bool focused, int mouse_x, int mouse_y)
+{
+    if (!m_scene_presenter)
+        return;
+    if (!m_openaxis)
+        m_openaxis = std::make_unique<OpenAxisController>(*m_scene_presenter, m_project_interactor, std::move(scheduler), [this] { request_render(); });
+    const bool modal = m_render_module_navigator->is_any_modal_dialog_opened();
+    m_openaxis->refresh(focused && !modal, mouse_x, mouse_y, m_screen_info);
+}
+#endif
+
 void PlaterRenderModule::on_activated()
 {
     if (m_scene_presenter != nullptr) {
@@ -1355,6 +1396,10 @@ void PlaterRenderModule::on_activated()
 
 void PlaterRenderModule::on_deactivated()
 {
+#ifdef SLIC3R_OPENAXIS
+    if (m_openaxis)
+        m_openaxis->deactivate();
+#endif
     App::set_global_lighting(m_scene_presenter->scene().lights());
 
     Platform::CameraSynchData data;

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <unordered_map>
+#include <functional>
 
 #include "Slic3r/App/Scene/GeometryDataFactory.hpp"
 #include "Slic3r/App/Scene/GizmoManager.hpp"
@@ -110,7 +111,8 @@ public:
 
     void clear_selection_root_children();
 
-    void render_scene(Render::CommandBuffer& command_buffer);
+    void render_scene(Render::CommandBuffer& command_buffer,
+                      std::function<void(Render::CommandBuffer&)> world_overlay = {});
     void render_imgui(const Render::ScreenInfo& screen_info);
 
     void screen_resized(const Render::Rect& viewport);
@@ -319,6 +321,8 @@ private:
     void update_cc_selection_geometry();
 private:
     const Domain::Workbench& m_workbench;
+    Render::CommandBuffer* m_overlay_command_buffer{nullptr};
+    std::function<void(Render::CommandBuffer&)> m_world_overlay;
     Biz::ProjectInteractor& m_project_interactor;
     Render::Device& m_device;
     Render::Rect m_viewport;

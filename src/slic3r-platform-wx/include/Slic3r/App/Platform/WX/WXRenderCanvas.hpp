@@ -5,6 +5,7 @@
 
 #include <GL/glew.h>
 #include <wx/glcanvas.h>
+namespace openaxis { struct Scheduler; }
 
 #include "Slic3r/App/Platform/AbstractRenderCanvas.hpp"
 
@@ -64,6 +65,10 @@ private:
     bool m_initialized{false};
     bool m_in_render{false};
     bool m_pending_frame{false};
+#ifdef SLIC3R_OPENAXIS
+    std::shared_ptr<openaxis::Scheduler> m_integration_scheduler;
+    void refresh_navigation();
+#endif
 
     static constexpr size_t MAX_INFLIGHT_FRAMES{1};
     GLsync m_frame_fence[MAX_INFLIGHT_FRAMES] = {nullptr};

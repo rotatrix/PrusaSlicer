@@ -225,7 +225,8 @@ void PlaterScenePresenter::load_selected_project()
     center_camera_on_selected_bed(false);
 }
 
-void PlaterScenePresenter::render_scene(Render::CommandBuffer& command_buffer)
+void PlaterScenePresenter::render_scene(Render::CommandBuffer& command_buffer,
+                                       std::function<void(Render::CommandBuffer&)> world_overlay)
 {
     ZoneScoped;
 
@@ -243,7 +244,22 @@ void PlaterScenePresenter::render_scene(Render::CommandBuffer& command_buffer)
         m_camera_frustum_updater.update_scene_aabb(scene());
 #endif // ENABLE_DEBUG_RENDER_SCENE_AABB
         m_camera_frustum_updater.update_camera_frustum(scene().camera());
-        scene().render(m_device, command_buffer, this);
+        m_overlay_command_buffer = &command_buffer;
+        m_world_overlay = std::move(world_overlay);
+        try {
+            scene().render(m_device, command_buffer, this);
+            // Scenes without an on-top layer still need their world overlay.
+            if (m_world_overlay) {
+                auto draw = std::move(m_world_overlay);
+                draw(command_buffer);
+            }
+        } catch (...) {
+            m_world_overlay = {};
+            m_overlay_command_buffer = nullptr;
+            throw;
+        }
+        m_world_overlay = {};
+        m_overlay_command_buffer = nullptr;
     }
 }
 
@@ -1743,6 +1759,13 @@ void PlaterScenePresenter::on_wipe_tower_removed(Domain::SlicingId slicing_id)
 
 void PlaterScenePresenter::on_layer_begin(Render::CommandBuffer& cmd_buf, Scene::RenderLayerId layer_idx)
 {
+    // Use document depth before overlay/gizmo layers clear or overwrite it.
+    // Shadow and AO prepasses have their own command buffers and must not draw UI.
+    if (&cmd_buf == m_overlay_command_buffer && m_world_overlay &&
+        layer_idx >= Scene::RenderLayerId(PlaterSceneLayer::ObjectAccessoriesOnTop)) {
+        auto draw = std::move(m_world_overlay);
+        draw(cmd_buf);
+    }
     cmd_buf.set_depth_write_enabled(true);
     if (layer_idx == Scene::RenderLayerId(PlaterSceneLayer::GizmoHandles)) {
         // clear depth buffer so all gizmo handles are rendered over document objects

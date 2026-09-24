@@ -4,6 +4,10 @@
 #include <iostream>
 
 #include <wx/frame.h>
+#include <wx/app.h>
+#ifdef SLIC3R_OPENAXIS
+#include "Slic3r/App/Platform/WX/OpenAxisScheduler.hpp"
+#endif
 #include <wx/dcclient.h>
 #include <wx/clipbrd.h>
 #include <imgui/imgui.h>
@@ -380,6 +384,11 @@ WXRenderCanvas::WXRenderCanvas(wxWindow* parent, int id) :
     Bind(wxEVT_ENTER_WINDOW, &WXRenderCanvas::on_mouse_enter, this);
     Bind(wxEVT_SIZE, &WXRenderCanvas::on_size, this);
     Bind(wxEVT_IDLE, &WXRenderCanvas::on_idle, this);
+#ifdef SLIC3R_OPENAXIS
+    auto scheduler = std::make_shared<OpenAxisScheduler>();
+    scheduler->before_dispatch = [this] { refresh_navigation(); };
+    m_integration_scheduler = std::move(scheduler);
+#endif
     Bind(wxEVT_PAINT, &WXRenderCanvas::on_paint, this);
     Bind(wxEVT_CHAR, &WXRenderCanvas::on_keyboard, this);
     Bind(wxEVT_KEY_DOWN, &WXRenderCanvas::on_keyboard, this);
@@ -417,6 +426,12 @@ WXRenderCanvas::WXRenderCanvas(wxWindow* parent, int id) :
 
 WXRenderCanvas::~WXRenderCanvas()
 {
+#ifdef SLIC3R_OPENAXIS
+    static_cast<OpenAxisScheduler &>(*m_integration_scheduler).before_dispatch = {};
+    // Stop navigation transport while wx and the viewport are still alive.
+    if (m_render_module)
+        m_render_module->deactivate();
+#endif
     ImGui_ImplWX_Shutdown();
     Render::shutdown_render();
 }
@@ -731,6 +746,9 @@ void WXRenderCanvas::render()
         return;
     ScopedGuard guard{m_in_render};
     AbstractRenderCanvas::render();
+#ifdef SLIC3R_OPENAXIS
+    refresh_navigation();
+#endif
 }
 
 void WXRenderCanvas::on_paint(wxPaintEvent& event)
@@ -991,6 +1009,19 @@ void WXRenderCanvas::on_mouse(wxMouseEvent& evt)
     repaint();
 }
 
+#ifdef SLIC3R_OPENAXIS
+void WXRenderCanvas::refresh_navigation()
+{
+    if (!m_initialized || !m_render_module || !m_render_module->is_initialized()) return;
+    const auto cursor = ScreenToClient(wxGetMousePosition());
+    const auto size = GetClientSize();
+    const int x = size.x > 0 ? int(cursor.x * double(m_screen_info.physical_width()) / size.x) : -1;
+    const int y = size.y > 0 ? int(cursor.y * double(m_screen_info.physical_height()) / size.y) : -1;
+    m_render_module->on_navigation_event(m_integration_scheduler,
+        IsShownOnScreen() && IsEnabled() && wxTheApp && wxTheApp->IsActive(), x, y);
+}
+#endif
+
 void WXRenderCanvas::on_idle(wxIdleEvent& event)
 {
     ZoneScoped;
@@ -998,6 +1029,10 @@ void WXRenderCanvas::on_idle(wxIdleEvent& event)
         return;
     }
 
+#ifdef SLIC3R_OPENAXIS
+    // Existing wx idle events follow input/activation; do not request more idle events.
+    refresh_navigation();
+#endif
     m_main_thread_dispatcher.dispatch_enqueued();
     bool render_requested = get_and_reset_render_requested();
     // std::cout << "Idle: render requested: " << render_requested << "\n";

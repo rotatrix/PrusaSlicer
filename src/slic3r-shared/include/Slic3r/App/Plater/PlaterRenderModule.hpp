@@ -79,6 +79,9 @@ class PlaterRenderLayout;
 class SidebarPlaterActionButtons;
 class History;
 class ThumbnailImageGenerator;
+#ifdef SLIC3R_OPENAXIS
+class OpenAxisController;
+#endif
 
 class PlaterRenderModule final :
     public Platform::AbstractRenderModule,
@@ -108,6 +111,9 @@ public:
     void render_imgui(Render::CommandBuffer& cmd_buffer) override;
     void on_scene_mouse_event(const Platform::MouseEvent& e) override;
     void on_scene_keyboard_event(const Platform::KeyboardEvent& e) override;
+#ifdef SLIC3R_OPENAXIS
+    void on_navigation_event(std::shared_ptr<openaxis::Scheduler>, bool focused, int mouse_x, int mouse_y) override;
+#endif
     void on_scene_selection_changed(
         Domain::SelectionId project_id,
         const Biz::Scene::ObjectSelection& selection
@@ -235,6 +241,10 @@ private:
     App::Undo::Store& m_undo_store;
     std::unique_ptr<PlaterScenePresenter> m_scene_presenter;
     std::unique_ptr<Scene::GizmoManager> m_gizmo_manager;
+#ifdef SLIC3R_OPENAXIS
+    std::unique_ptr<OpenAxisController> m_openaxis;
+    bool m_openaxis_diagnostics_visible = false;
+#endif
 
     Yoga::Menu* m_bed_menu = nullptr;
     Yoga::Menu* m_object_menu = nullptr;

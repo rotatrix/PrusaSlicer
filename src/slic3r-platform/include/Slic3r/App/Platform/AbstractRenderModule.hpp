@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 
 #include "Slic3r/App/Platform/MouseEvent.hpp"
 #include "Slic3r/App/Platform/KeyboardEvent.hpp"
@@ -7,6 +8,8 @@
 #include "Slic3r/App/Platform/CommandRegistry.hpp"
 #include "Slic3r/App/Platform/CommandName.hpp"
 #include "Slic3r/App/Platform/CameraSynchData.hpp"
+
+namespace openaxis { struct Scheduler; }
 
 namespace Slic3r::Domain {
 enum class PrinterTechnology : uint8_t;
@@ -50,6 +53,9 @@ public:
 
     virtual void on_scene_mouse_event(const MouseEvent& e);
     virtual void on_scene_keyboard_event(const KeyboardEvent& e);
+
+    // UI-event-driven metadata refresh; physical cursor coordinates are canvas-relative.
+    virtual void on_navigation_event(std::shared_ptr<openaxis::Scheduler>, bool, int, int) {}
 
     void activate(Biz::Platform::IRenderRequestHandler* render_request_handler);
     void deactivate();

@@ -1392,6 +1392,13 @@ slic3r_remap_configs("pugixml::static;yoga::yogacore;${YAML_LIB}" RelWithDebInfo
 
 add_library(slic3r-shared STATIC ${SLIC3R_SHARED_FILES})
 
+include(${PROJECT_SOURCE_DIR}/cmake/OpenAxis.cmake)
+if(SLIC3R_OPENAXIS)
+    target_sources(slic3r-shared PRIVATE src/Slic3r/App/Plater/OpenAxisController.cpp)
+    target_link_libraries(slic3r-shared PUBLIC OpenAxis::openaxis)
+    target_compile_definitions(slic3r-shared PUBLIC SLIC3R_OPENAXIS)
+endif()
+
 # MSVC's LTCG inflates object files to the point where the COFF static library
 # format's 4 GB size limit is exceeded. Disable LTO for this target until
 # slic3r-shared is split into smaller libraries.

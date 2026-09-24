@@ -32,6 +32,10 @@ public:
     }
     void reset_distance_to_target();
 
+    // Adopt an externally written camera without resetting its orientation.
+    // Keeps subsequent native mouse input relative to that camera.
+    void synchronize_from_camera(bool use_pivot_distance = false);
+
     const Domain::Vec3d& pivot() const { return m_pivot; }
     void set_pivot(const Domain::Vec3d& pos) { m_pivot = pos; }
     void synchronize_pivot_with_target() { m_pivot = m_target; }

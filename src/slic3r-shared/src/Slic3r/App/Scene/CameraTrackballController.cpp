@@ -27,6 +27,19 @@ void CameraTrackballController::reset_distance_to_target()
     m_distance = CameraProjectionParameters::REF_Z;
 }
 
+void CameraTrackballController::synchronize_from_camera(bool use_pivot_distance)
+{
+    const Vec3d forward = m_camera.forward();
+    if (use_pivot_distance)
+        m_distance = std::max(MIN_FOCAL_DISTANCE, (m_camera.position() - m_pivot).norm());
+    m_target = m_camera.position() + m_distance * forward;
+    m_view_rotation = Eigen::Quaterniond(m_camera.view().matrix().block<3, 3>(0, 0));
+    m_azimuth = std::atan2(forward.y(), forward.x());
+    if (m_azimuth < 0.0)
+        m_azimuth += 2.0 * M_PI;
+    m_zenith = std::acos(std::clamp(forward.z(), -1.0, 1.0));
+}
+
 void CameraTrackballController::add_azimuth_and_zenith(double delta_azimuth, double delta_zenith, bool apply_limits)
 {
     delta_zenith = fmod(delta_zenith, 2.0 * M_PI);

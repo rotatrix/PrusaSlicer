@@ -1,0 +1,7 @@
+cmake_minimum_required(VERSION 3.24)
+project(OpenAxisAdapterChecks LANGUAGES CXX)
+enable_testing()
+add_executable(openaxis_overlay_tests overlay.cpp)
+target_compile_features(openaxis_overlay_tests PRIVATE cxx_std_17)
+target_include_directories(openaxis_overlay_tests PRIVATE ../../src/slic3r-shared/include)
+add_test(NAME openaxis_overlay COMMAND openaxis_overlay_tests)
