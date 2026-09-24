@@ -6,7 +6,16 @@ Windows x64, macOS ARM64 and Ubuntu 24.04 x64 independently on pushes to
 Manual dispatch accepts a platform selector to retry one platform independently.
 Packages are unsigned previews with OpenAxis enabled and STEP support disabled.
 macOS receives an ad-hoc signature, not Apple notarization. Windows mesh repair is
-also disabled. No GitHub release is published automatically.
+also disabled.
+
+After all three platforms pass in a full matrix run, CI creates a draft
+prerelease named `OpenAxis preview <commit>`. It uploads all three packages and
+their verified SHA256 checksums from that same run and source commit. The draft
+targets the full commit SHA and is never published automatically. Rerunning the
+release job updates that commit's existing draft; published releases are left
+unchanged. Standalone platform dispatches do not create releases. To recover a
+failed full matrix, use GitHub's **Re-run failed jobs** so successful artifacts
+remain associated with the same run, or dispatch `all` again.
 
 Download each package artifact from the Actions run. ZIPs and tarballs contain
 resources, dependency notices, source revision information and runtime setup
