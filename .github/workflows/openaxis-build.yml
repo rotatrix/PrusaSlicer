@@ -1,0 +1,108 @@
+name: OpenAxis desktop builds
+
+on:
+  push:
+    branches: [rotatrix]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: openaxis-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  desktop:
+    name: ${{ matrix.platform }}
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 360
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: windows-x64
+            runner: windows-2022
+            script: windows
+          - platform: macos-arm64
+            runner: macos-15
+            script: macos
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            script: linux
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CMake
+        run: python -m pip install cmake==3.31.6
+      - name: Prepare logs
+        run: mkdir -p ci-logs
+      - name: Linux prerequisites
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential autoconf automake libtool ninja-build pkg-config libglu1-mesa-dev libgtk-3-dev libdbus-1-dev libwebkit2gtk-4.1-dev texinfo gettext libudev-dev xvfb xauth
+      - name: macOS prerequisites
+        if: runner.os == 'macOS'
+        run: bash .github/scripts/macos-build.sh prerequisites 2>&1 | tee ci-logs/prerequisites.log
+      - name: Restore dependency build
+        id: deps-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: deps/build-ci
+          key: deps-v1-${{ matrix.runner }}-${{ runner.arch }}-cmake3316-${{ hashFiles('deps/**', 'cmake/modules/AddCMakeProject.cmake', 'cmake/modules/OSXDeploymentTarget.cmake', '.github/scripts/*-build.*') }}
+      - name: Build dependencies (Unix)
+        if: runner.os != 'Windows'
+        run: bash .github/scripts/${{ matrix.script }}-build.sh deps 2>&1 | tee ci-logs/deps.log
+      - name: Build dependencies (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .github/scripts/windows-build.ps1 deps *>&1 | Tee-Object ci-logs/deps.log
+      - name: Save dependency build
+        if: steps.deps-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: deps/build-ci
+          key: ${{ steps.deps-cache.outputs.cache-primary-key }}
+      - name: Build and test (Unix)
+        if: runner.os != 'Windows'
+        run: bash .github/scripts/${{ matrix.script }}-build.sh build 2>&1 | tee ci-logs/build.log
+      - name: Build and test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .github/scripts/windows-build.ps1 build *>&1 | Tee-Object ci-logs/build.log
+      - name: Package and smoke test (Unix)
+        if: runner.os != 'Windows'
+        run: bash .github/scripts/${{ matrix.script }}-build.sh package 2>&1 | tee ci-logs/package.log
+      - name: Package and smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: .github/scripts/windows-build.ps1 package *>&1 | Tee-Object ci-logs/package.log
+      - name: Upload package
+        uses: actions/upload-artifact@v4
+        with:
+          name: PrusaSlicer-Rotatrix-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            dist/*.zip
+            dist/*.tar.gz
+            dist/*.sha256
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-${{ matrix.platform }}-${{ github.sha }}
+          path: |
+            ci-logs/
+            build-ci/CMakeCache.txt
+            build-ci/CMakeFiles/CMakeConfigureLog.yaml
+            deps/build-ci/CMakeFiles/CMakeConfigureLog.yaml
+            build-ci/openaxis-checks/Testing/Temporary/LastTest.log
+          retention-days: 14

@@ -2,6 +2,8 @@ name: Run clang-format
 
 on:
   push:
+    branches-ignore:
+      - rotatrix
   workflow_dispatch:
 
 jobs:

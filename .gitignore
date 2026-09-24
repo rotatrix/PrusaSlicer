@@ -32,3 +32,6 @@ CMakeUserPresets.json
 
 # Optional local OpenAxis SDK checkout (CMake fetches the release by default).
 /openaxis/
+/build-ci/
+/dist/
+/ci-logs/

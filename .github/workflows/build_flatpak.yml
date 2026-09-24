@@ -2,8 +2,8 @@ name: Build flatpak
 
 on:
   push:
-    branches:
-      - '**'
+    branches-ignore:
+      - rotatrix
     tags:
       - 'version_*'
   workflow_dispatch:
