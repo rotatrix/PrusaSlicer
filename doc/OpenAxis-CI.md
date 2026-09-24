@@ -3,6 +3,7 @@
 `OpenAxis desktop builds` is a self-contained GitHub Actions workflow. It builds
 Windows x64, macOS ARM64 and Ubuntu 24.04 x64 independently on pushes to
 `rotatrix`, or by manual dispatch. It does not call Prusa's private workflows.
+Manual dispatch accepts a platform selector to retry one platform independently.
 Packages are unsigned previews with OpenAxis enabled and STEP support disabled.
 macOS receives an ad-hoc signature, not Apple notarization. Windows mesh repair is
 also disabled. No GitHub release is published automatically.
