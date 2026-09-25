@@ -1,7 +1,7 @@
 #include "OpenAxisController.hpp"
 #include "OpenAxisOverlay.hpp"
 #include "GLCanvas3D.hpp"
-#include "MultipleBeds.hpp"
+#include "libslic3r/MultipleBeds.hpp"
 #include <imgui/imgui.h>
 #include <openaxis/logging.hpp>
 #include <sstream>
@@ -124,9 +124,11 @@ std::string OpenAxisController::connection_status() const {
 }
 void OpenAxisController::refresh(bool focused, int x, int y, int width, int height, double scale) {
     m_width = width; m_height = height; m_scale = scale;
-    const bool native_changed = !m_last_view.matrix().isApprox(m_camera.get_view_matrix().matrix()) || m_last_zoom != m_camera.get_zoom();
+    const bool native_changed = !m_last_view.matrix().isApprox(m_camera.get_view_matrix().matrix()) ||
+        m_last_zoom != m_camera.get_zoom() || m_last_projection != m_camera.get_type();
     m_last_view = m_camera.get_view_matrix();
     m_last_zoom = m_camera.get_zoom();
+    m_last_projection = m_camera.get_type();
     if (!m_enabled)
         return;
     const bool available = viewport_available();
@@ -317,6 +319,7 @@ bool OpenAxisController::write_camera(const openaxis::Pose &p) {
     m_canvas.update_openaxis_projection();
     m_last_view = c.get_view_matrix();
     m_last_zoom = c.get_zoom();
+    m_last_projection = c.get_type();
     m_redraw();
     return true;
 }

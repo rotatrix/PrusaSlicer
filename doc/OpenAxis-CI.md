@@ -9,7 +9,7 @@ macOS receives an ad-hoc signature, not Apple notarization. Windows mesh repair 
 also disabled.
 
 After all three platforms pass in a full matrix run, CI creates a draft
-prerelease named `OpenAxis preview <commit>`. It uploads all three packages and
+prerelease named `PrusaSlicer 2.9.6 OpenAxis preview <commit>`. It uploads all three packages and
 their verified SHA256 checksums from that same run and source commit. The draft
 targets the full commit SHA and is never published automatically. Rerunning the
 release job updates that commit's existing draft; published releases are left

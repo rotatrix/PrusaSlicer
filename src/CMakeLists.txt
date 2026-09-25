@@ -172,8 +172,9 @@ if (SLIC3R_GUI)
         target_link_libraries(PrusaSlicer PRIVATE -ldl)
     endif ()
     if (WIN32)
-        find_library(PSAPI_LIB NAMES Psapi)
-        target_link_libraries(PrusaSlicer PRIVATE ${PSAPI_LIB})
+        # The Windows toolchain supplies this system library at link time;
+        # configuring from PowerShell need not have a developer-prompt LIB path.
+        target_link_libraries(PrusaSlicer PRIVATE psapi)
     endif ()
 endif ()
 

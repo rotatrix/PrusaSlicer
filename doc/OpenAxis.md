@@ -8,7 +8,7 @@ cursor/center surface picks, a transient pivot indicator and diagnostics.
 
 Enable with `-DSLIC3R_OPENAXIS=ON`. CMake 3.24+ and Git fetch the published
 `cpp/v1.0.0-rc.1` SDK from https://github.com/rotatrix/openaxis.git. For SDK
- development, set `OPENAXIS_SOURCE_DIR` to a checkout containing `cpp/`.
+development, set `OPENAXIS_SOURCE_DIR` to a checkout containing `cpp/`.
 The feature defaults off and requires a native GUI build. See OpenAxis-CI.md
 for reproducible builds and package generation.
 

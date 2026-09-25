@@ -15,10 +15,11 @@ if ($Stage -in @('deps', 'all')) {
 }
 if ($Stage -in @('build', 'all')) {
     cmake -S . -B $appBuild -G 'Visual Studio 17 2022' -A x64 `
+        -DCMAKE_CONFIGURATION_TYPES=Release `
         "-DCMAKE_PREFIX_PATH=$depsBuild/destdir/usr/local" `
         -DCMAKE_BUILD_TYPE=Release -DSLIC3R_STATIC=ON -DSLIC3R_OPENAXIS=ON `
         -DOPENAXIS_SOURCE_DIR= -DSLIC3R_ENABLE_FORMAT_STEP=OFF `
-        -DSLIC3R_ENABLE_WIN10_MESH_REPAIR=OFF -DSLIC3R_PCH=OFF `
+        -DSLIC3R_ENABLE_WIN10_MESH_REPAIR=OFF -DSLIC3R_PCH=ON `
         -DSLIC3R_BUILD_TESTS=OFF -DSLIC3R_RELEASE_DEBUG_SYMBOLS=OFF
     cmake --build $appBuild --config Release --parallel 2
     cmake -S tests/openaxis -B "$appBuild/openaxis-checks" -G 'Visual Studio 17 2022' -A x64

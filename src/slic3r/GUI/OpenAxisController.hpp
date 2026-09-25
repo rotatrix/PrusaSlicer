@@ -43,6 +43,7 @@ class OpenAxisController final : public openaxis::NavigationAdapter {
     Camera &m_camera;
     Transform3d m_last_view{Transform3d::Identity()};
     double m_last_zoom = 0;
+    Camera::EType m_last_projection = Camera::EType::Unknown;
     std::function<void()> m_redraw;
     std::shared_ptr<openaxis::Scheduler> m_scheduler;
     std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
