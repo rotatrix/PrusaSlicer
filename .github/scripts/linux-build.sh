@@ -14,7 +14,7 @@ STAGE="$DIST_DIR/$NAME"
 deps() {
     cmake -S "$ROOT/deps" -B "$DEPS_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-        -DPrusaSlicer_deps_PACKAGE_EXCLUDES=OCCT -DDEP_MAX_THREADS="$JOBS"
+        -DPrusaSlicer_deps_PACKAGE_EXCLUDES=OCCT -DDEP_MAX_THREADS="$JOBS" -DDEP_WX_GTK3=ON
     cmake --build "$DEPS_BUILD_DIR" --parallel 1
 }
 

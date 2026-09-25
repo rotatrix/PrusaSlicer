@@ -32,7 +32,7 @@ else
   notes=$(mktemp)
   trap 'rm -f "$notes"' EXIT
   cat > "$notes" <<EOF
-OpenAxis preview built from commit $GITHUB_SHA.
+PrusaSlicer 2.9.6 OpenAxis preview built from commit $GITHUB_SHA.
 
 All three platforms passed build, OpenAxis tests and package smoke checks in the same Actions run:
 ${GITHUB_SERVER_URL:-https://github.com}/$GH_REPO/actions/runs/${GITHUB_RUN_ID:?Run ID is required}
@@ -43,5 +43,5 @@ These previews have STEP support disabled. Windows is unsigned; macOS is ad-hoc 
 GUI and Rotatrix hardware testing remain required before publication.
 EOF
   gh release create "$tag" "${assets[@]}" --draft --prerelease \
-    --target "$GITHUB_SHA" --title "OpenAxis preview ${GITHUB_SHA:0:12}" --notes-file "$notes"
+    --target "$GITHUB_SHA" --title "PrusaSlicer 2.9.6 OpenAxis preview ${GITHUB_SHA:0:12}" --notes-file "$notes"
 fi

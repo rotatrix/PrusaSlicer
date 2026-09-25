@@ -1,7 +1,7 @@
 #pragma once
 #include <optional>
-#include "Camera.hpp"
 #include <chrono>
+#include "Camera.hpp"
 #include <deque>
 #include <functional>
 #include <openaxis/navigation.hpp>

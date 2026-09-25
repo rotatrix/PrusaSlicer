@@ -27,3 +27,4 @@ CMakeUserPresets.json
 /dist/
 /ci-logs/
 /deps-stable.log
+/configure-stable.log

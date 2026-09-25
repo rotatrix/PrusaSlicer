@@ -13,8 +13,8 @@
 namespace Slic3r::GUI {
 using openaxis::Value;
 namespace {
-openaxis::Vec3 vector(const Vec3d &v) { return {v[0](), v[1](), v.z()}; }
-Vec3d vector(openaxis::Vec3 v) { return {v[0], v[1], v.z}; }
+openaxis::Vec3 vector(const Vec3d &v) { return {v.x(), v.y(), v.z()}; }
+Vec3d vector(openaxis::Vec3 v) { return {v.x, v.y, v.z}; }
 Value bounds_value(const BoundingBoxf3 &b) {
     if (!b.defined)
         return nullptr;
@@ -127,8 +127,6 @@ void OpenAxisController::refresh(bool focused, int x, int y, int width, int heig
     const bool native_changed = !m_last_view.matrix().isApprox(m_camera.get_view_matrix().matrix()) || m_last_zoom != m_camera.get_zoom();
     m_last_view = m_camera.get_view_matrix();
     m_last_zoom = m_camera.get_zoom();
-    if (native_changed && m_enabled && !m_writing_camera)
-        m_session.native_camera_changed();
     if (!m_enabled)
         return;
     const bool available = viewport_available();
@@ -152,6 +150,8 @@ void OpenAxisController::refresh(bool focused, int x, int y, int width, int heig
         m_focused = focused;
         m_connection.refresh_metadata();
     }
+    if (native_changed && m_focused && !m_writing_camera)
+        m_session.native_camera_changed();
     m_connection.start();
 }
 void OpenAxisController::record_diagnostic(std::string text, const std::string &level) noexcept {
@@ -235,6 +235,7 @@ void OpenAxisController::render_diagnostics(bool &visible) {
 std::string OpenAxisController::context_key() const {
     if (!viewport_available()) return "unavailable";
     return std::to_string(m_canvas.get_model()->id().id) + "/" +
+        std::to_string(m_canvas.openaxis_scene_revision()) + "/" +
         std::to_string(reinterpret_cast<std::uintptr_t>(&m_canvas)) + "/" +
         std::to_string(s_multiple_beds.get_active_bed()) + "/" +
         std::to_string(m_width) + "/" + std::to_string(m_height) + "/" + std::to_string(m_scale);
@@ -313,7 +314,7 @@ bool OpenAxisController::write_camera(const openaxis::Pose &p) {
     const double distance = std::max(1.0, m_pivot ? (position - vector(*m_pivot)).norm() : c.get_distance());
     c.look_at(position, position + distance * forward, vector(q.rotate({0, 1, 0})));
     c.set_zoom(p.fov > 0 ? m_height / (2 * distance * std::tan(p.fov / 2)) : m_height / p.ortho_extent);
-    c.apply_projection(m_canvas.scene_bounding_box());
+    m_canvas.update_openaxis_projection();
     m_last_view = c.get_view_matrix();
     m_last_zoom = c.get_zoom();
     m_redraw();

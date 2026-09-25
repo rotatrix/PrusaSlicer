@@ -1364,6 +1364,11 @@ GLCanvas3D::~GLCanvas3D()
 }
 
 #ifdef SLIC3R_OPENAXIS
+void GLCanvas3D::update_openaxis_projection()
+{
+    wxGetApp().plater()->get_camera().apply_projection(_max_bounding_box(true));
+}
+
 void GLCanvas3D::refresh_openaxis()
 {
     if (!m_openaxis || !m_canvas) return;
@@ -1437,6 +1442,9 @@ bool GLCanvas3D::init()
 
 void GLCanvas3D::reset_volumes()
 {
+#ifdef SLIC3R_OPENAXIS
+    ++m_openaxis_scene_revision;
+#endif
     if (!m_initialized)
         return;
 
@@ -2485,6 +2493,9 @@ void GLCanvas3D::mirror_selection(Axis axis)
 // 5) Out of bed collision status & message overlay (texture)
 void GLCanvas3D::reload_scene(bool refresh_immediately, bool force_full_scene_refresh)
 {
+#ifdef SLIC3R_OPENAXIS
+    ++m_openaxis_scene_revision;
+#endif
     if (m_canvas == nullptr || m_config == nullptr || m_model == nullptr)
         return;
 
