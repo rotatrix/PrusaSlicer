@@ -1355,8 +1355,32 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
 
 GLCanvas3D::~GLCanvas3D()
 {
+#ifdef SLIC3R_OPENAXIS
+    if (m_openaxis_scheduler) m_openaxis_scheduler->before_dispatch = {};
+    m_openaxis.reset();
+    m_openaxis_scheduler.reset();
+#endif
     reset_volumes();
 }
+
+#ifdef SLIC3R_OPENAXIS
+void GLCanvas3D::refresh_openaxis()
+{
+    if (!m_openaxis || !m_canvas) return;
+    const Size size = get_canvas_size();
+    const wxPoint cursor = m_canvas->ScreenToClient(wxGetMousePosition());
+    // wx coordinates are logical on Retina; the camera viewport is physical.
+#if ENABLE_RETINA_GL
+    const double scale = size.get_scale_factor();
+#else
+    const double scale = 1.0;
+#endif
+    const bool focused = m_canvas->IsShownOnScreen() && m_canvas->IsEnabled() &&
+        wxTheApp->IsActive() && wxGetApp().plater()->get_current_canvas3D() == this;
+    m_openaxis->refresh(focused, int(cursor.x * scale), int(cursor.y * scale),
+                       size.get_width(), size.get_height(), scale);
+}
+#endif
 
 void GLCanvas3D::post_event(wxEvent &&event)
 {
@@ -2122,6 +2146,18 @@ void GLCanvas3D::render()
 
     camera.apply_projection(_max_bounding_box(true));
 
+#ifdef SLIC3R_OPENAXIS
+    if (!m_openaxis) {
+        m_openaxis_scheduler = std::make_shared<OpenAxisScheduler>();
+        m_openaxis = std::make_unique<OpenAxisController>(*this, camera, m_openaxis_scheduler, [this] {
+            set_as_dirty();
+            if (m_canvas) m_canvas->Refresh(false);
+        });
+        m_openaxis_scheduler->before_dispatch = [this] { refresh_openaxis(); };
+    }
+    refresh_openaxis();
+#endif
+
     const int curr_active_bed_id = s_multiple_beds.get_active_bed();
     if (m_last_active_bed_id != curr_active_bed_id) {
         const Vec3d bed_offset = s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed());
@@ -2168,6 +2204,9 @@ void GLCanvas3D::render()
         if (!m_main_toolbar.is_enabled() && current_printer_technology() != ptSLA)
             _render_gcode();
         _render_objects(GLVolumeCollection::ERenderType::Transparent);
+#ifdef SLIC3R_OPENAXIS
+        m_openaxis->render_indicator();
+#endif
 
     #if ENABLE_RENDER_SELECTION_CENTER
         _render_selection_center();
@@ -2309,6 +2348,9 @@ void GLCanvas3D::render()
         m_tooltip.render(m_mouse.position, *this);
 
     wxGetApp().plater()->get_mouse3d_controller().render_settings_dialog(*this);
+#ifdef SLIC3R_OPENAXIS
+    m_openaxis->render_diagnostics(m_openaxis_diagnostics);
+#endif
 
     wxGetApp().plater()->get_notification_manager()->render_notifications(*this, get_overlay_window_width());
 

@@ -1,4 +1,4 @@
-#/|/ Copyright (c) Prusa Research 2018 - 2023 Tomáš Mészáros @tamasmeszaros, David Kocík @kocikdav, Lukáš Matěna @lukasmatena, Enrico Turri @enricoturri1966, Vojtěch Bubník @bubnikv, Pavel Mikuš @Godrak, Filip Sykala @Jony01, Oleksandra Iushchenko @YuSanka, Lukáš Hejl @hejllukas, Vojtěch Král @vojtechkral
+#/|/ Copyright (c) Prusa Research 2018 - 2023 TomÃ¡Å¡ MÃ©szÃ¡ros @tamasmeszaros, David KocÃ­k @kocikdav, LukÃ¡Å¡ MatÄ›na @lukasmatena, Enrico Turri @enricoturri1966, VojtÄ›ch BubnÃ­k @bubnikv, Pavel MikuÅ¡ @Godrak, Filip Sykala @Jony01, Oleksandra Iushchenko @YuSanka, LukÃ¡Å¡ Hejl @hejllukas, VojtÄ›ch KrÃ¡l @vojtechkral
 #/|/ Copyright (c) 2023 Pedro Lamas @PedroLamas
 #/|/ Copyright (c) 2020 Sergey Kovalev @RandoMan70
 #/|/ Copyright (c) 2021 Boleslaw Ciesielski
@@ -506,3 +506,10 @@ endif ()
 
 # Add a definition so that we can tell we are compiling slic3r.
 target_compile_definitions(libslic3r_gui PRIVATE SLIC3R_CURRENTLY_COMPILING_GUI_MODULE)
+
+include(${PROJECT_SOURCE_DIR}/cmake/OpenAxis.cmake)
+if(SLIC3R_OPENAXIS)
+    target_sources(libslic3r_gui PRIVATE GUI/OpenAxisController.cpp)
+    target_link_libraries(libslic3r_gui PUBLIC OpenAxis::openaxis)
+    target_compile_definitions(libslic3r_gui PUBLIC SLIC3R_OPENAXIS)
+endif()

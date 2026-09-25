@@ -1337,6 +1337,12 @@ static const wxString sep_space = "";
 
 static void append_about_menu_item(wxMenu* target_menu, int insert_pos = wxNOT_FOUND)
 {
+#ifdef SLIC3R_OPENAXIS
+    append_menu_item(target_menu, wxID_ANY, "OpenAxis Diagnostics", "Show OpenAxis navigation diagnostics",
+        [](wxCommandEvent&) {
+            if (auto *canvas = wxGetApp().plater()->get_current_canvas3D()) canvas->toggle_openaxis_diagnostics();
+        });
+#endif
     if (wxGetApp().is_editor())
         append_menu_item(target_menu, wxID_ANY, wxString::Format(_L("&About %s"), SLIC3R_APP_NAME), _L("Show about dialog"),
             [](wxCommandEvent&) { Slic3r::GUI::about(); }, nullptr, nullptr, []() {return true; }, nullptr, insert_pos);

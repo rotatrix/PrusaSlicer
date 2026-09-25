@@ -1,0 +1,7 @@
+# Optional profile import for an existing Rotatrix configuration.
+# Paste into a profile using <> (Edit as YAML).
+include_template: orbit_momentary
+description: >-
+  PrusaSlicer camera navigation. Hold Win (Windows), Ctrl (Mac), or Super
+  (Linux) to orbit; btn4 pans and Shift swaps orbit/pan.
+triggers: ["tag:app.prusaslicer"]
