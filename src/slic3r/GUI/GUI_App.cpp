@@ -299,10 +299,10 @@ private:
             title = wxGetApp().is_editor() ? SLIC3R_APP_NAME : GCODEVIEWER_APP_NAME;
 
             // dynamically get the version to display
-            version = _L("Version") + " " + std::string(SLIC3R_VERSION);
+            version = "Rotatrix Build - " + _L("Version") + " " + std::string(SLIC3R_VERSION);
 
             // credits infornation
-            credits = "\n" + title + " " +
+            credits = "Unofficial PrusaSlicer build with Rotatrix integration.\n\n" + title + " " +
                 _L("is based on Slic3r by Alessandro Ranellucci and the RepRap community.") + "\n\n" +
                 _L("Developed by Prusa Research.") + "\n\n" +
                 _L("Licensed under GNU AGPLv3.") + "\n\n\n\n\n\n\n";

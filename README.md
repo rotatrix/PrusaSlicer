@@ -1,7 +1,11 @@
 
 ![PrusaSlicer logo](/resources/icons/PrusaSlicer.png?raw=true)
 
-# PrusaSlicer
+# PrusaSlicer - Rotatrix Build (2.9.6)
+
+Unofficial PrusaSlicer 2.9.6 build with Rotatrix integration. This is not an
+official Prusa Research release. See [OpenAxis](doc/OpenAxis.md) and
+[preview builds](doc/OpenAxis-CI.md).
 
 You may want to check the [PrusaSlicer project page](https://www.prusa3d.com/prusaslicer/).
 Prebuilt Windows, OSX and Linux binaries are available through the [git releases page](https://github.com/prusa3d/PrusaSlicer/releases) or from the [Prusa3D downloads page](https://www.prusa3d.com/drivers/). There are also [3rd party Linux builds available](https://github.com/prusa3d/PrusaSlicer/wiki/PrusaSlicer-on-Linux---binary-distributions).
