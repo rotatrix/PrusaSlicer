@@ -1,4 +1,4 @@
-#/|/ Copyright (c) Prusa Research 2018 - 2023 Tomáš Mészáros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, Vojtěch Bubník @bubnikv, Pavel Mikuš @Godrak, Lukáš Hejl @hejllukas, Lukáš Matěna @lukasmatena, Filip Sykala @Jony01, David Kocík @kocikdav, Vojtěch Král @vojtechkral
+#/|/ Copyright (c) Prusa Research 2018 - 2023 TomÃ¡Å¡ MÃ©szÃ¡ros @tamasmeszaros, Oleksandra Iushchenko @YuSanka, Enrico Turri @enricoturri1966, VojtÄ›ch BubnÃ­k @bubnikv, Pavel MikuÅ¡ @Godrak, LukÃ¡Å¡ Hejl @hejllukas, LukÃ¡Å¡ MatÄ›na @lukasmatena, Filip Sykala @Jony01, David KocÃ­k @kocikdav, VojtÄ›ch KrÃ¡l @vojtechkral
 #/|/ Copyright (c) BambuStudio 2023 manch1n @manch1n
 #/|/ Copyright (c) 2023 Mimoja @Mimoja
 #/|/ Copyright (c) 2022 ole00 @ole00
@@ -660,7 +660,7 @@ target_link_libraries(libslic3r PUBLIC
     prusa_fdm_mixer
 )
 
-if (APPLE)
+if (APPLE AND SLIC3R_ENABLE_FORMAT_STEP)
     # TODO: we need to fix notarization with the separate shared library
     target_link_libraries(libslic3r PUBLIC OCCTWrapper)
 endif ()
