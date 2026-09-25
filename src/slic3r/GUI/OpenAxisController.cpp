@@ -7,8 +7,6 @@
 #include <sstream>
 #include <cmath>
 #include <limits>
-#include <iomanip>
-#include <boost/log/trivial.hpp>
 
 namespace Slic3r::GUI {
 using openaxis::Value;
@@ -34,15 +32,7 @@ OpenAxisController::OpenAxisController(GLCanvas3D &canvas, Camera &camera,
                                        std::shared_ptr<openaxis::Scheduler> scheduler,
                                        std::function<void()> redraw)
     : m_canvas(canvas), m_camera(camera), m_redraw(std::move(redraw)),
-      m_scheduler(std::move(scheduler)), m_client(options(m_scheduler.get())), m_collector([this] {
-          openaxis::DiagnosticOptions options;
-          options.debug = true;
-          options.log = [this](const std::string &level, const std::string &message) {
-              if (level != "debug" || m_diagnostics_writes)
-                  record_diagnostic(level + ": " + message, level);
-          };
-          return options;
-      }()),
+      m_scheduler(std::move(scheduler)), m_client(options(m_scheduler.get())),
       m_session(
           m_client, *this, &m_collector,
           [this] {
@@ -61,26 +51,14 @@ OpenAxisController::OpenAxisController(GLCanvas3D &canvas, Camera &camera,
           return metadata;
       }}) {
     m_collector.on_changed = [this] {
-        if (m_overlay_visible || m_diagnostics_visible)
+        if (m_diagnostics_visible)
             m_redraw();
-    };
-    m_client.on_connection = [this](bool connected) {
-        record_diagnostic(connected ? "transport: connected" : "transport: disconnected");
-    };
-    m_client.on_error = [this](const std::string &e) {
-        record_diagnostic("transport error: " + e, "debug");
-        BOOST_LOG_TRIVIAL(debug) << "OpenAxis: " << e;
     };
     m_connection.on_state = [this](const openaxis::ConnectionStatus &status) {
         // Lifecycle file logging is handled by the SDK.
         if (m_diagnostics_visible)
             m_redraw();
     };
-    m_session.diagnostics = [this](const openaxis::Diagnostic &d) noexcept {
-        if (d.event == "write" && d.target == "camera")
-            ++m_camera_writes;
-    };
-    record_diagnostic("Connecting to ws://127.0.0.1:6607");
     m_connection.start();
 }
 OpenAxisController::~OpenAxisController() {
@@ -89,7 +67,7 @@ OpenAxisController::~OpenAxisController() {
     m_session.close();
 }
 void OpenAxisController::schedule_diagnostic_expiry() {
-    if (!m_overlay_visible && !m_diagnostics_visible)
+    if (!m_diagnostics_visible)
         return;
     auto deadline = m_collector.presentation().expires_at;
     if (!deadline || (m_diagnostic_deadline && *m_diagnostic_deadline <= *deadline))
@@ -100,7 +78,7 @@ void OpenAxisController::schedule_diagnostic_expiry() {
         if (alive.expired() || m_diagnostic_deadline != deadline)
             return;
         m_diagnostic_deadline.reset();
-        if (m_overlay_visible || m_diagnostics_visible)
+        if (m_diagnostics_visible)
             m_redraw();
     });
 }
@@ -115,12 +93,6 @@ void OpenAxisController::deactivate() {
 }
 bool OpenAxisController::viewport_available() const {
     return m_canvas.is_initialized() && m_canvas.get_model() && m_width > 0 && m_height > 0;
-}
-std::string OpenAxisController::connection_status() const {
-    const auto status = m_connection.status();
-    if (status.state == "retrying")
-        return "Retrying: " + status.error;
-    return status.state;
 }
 void OpenAxisController::refresh(bool focused, int x, int y, int width, int height, double scale) {
     m_width = width; m_height = height; m_scale = scale;
@@ -139,7 +111,7 @@ void OpenAxisController::refresh(bool focused, int x, int y, int width, int heig
         m_collector.clear();
         m_context = context;
     }
-    m_collector.set_enabled(m_overlay_visible && available);
+    m_collector.set_enabled(m_diagnostics_visible && available);
     m_collector.set_context(context);
     // Panel hover makes cursor picking unavailable, not camera navigation.
     // Rotatrix can use its viewport-center fallback; panel keyboard focus
@@ -156,83 +128,25 @@ void OpenAxisController::refresh(bool focused, int x, int y, int width, int heig
         m_session.native_camera_changed();
     m_connection.start();
 }
-void OpenAxisController::record_diagnostic(std::string text, const std::string &level) noexcept {
-    openaxis::DiagnosticLog::emit(level, text);
-    if (m_diagnostics_paused)
-        return;
-    try {
-        constexpr std::size_t max_entries = 250, max_detail = 4096;
-        if (text.size() > max_detail)
-            text = text.substr(0, max_detail) + " [truncated]";
-        const double seconds =
-            std::chrono::duration<double>(std::chrono::steady_clock::now() - m_log_start).count();
-        std::ostringstream entry;
-        entry << std::fixed << std::setprecision(3) << seconds << "s  " << text;
-        text = entry.str();
-        m_diagnostic_log.push_back(std::move(text));
-        if (m_diagnostic_log.size() > max_entries)
-            m_diagnostic_log.pop_front();
-        m_diagnostics_dirty = true;
-    } catch (...) {
-        // Logging must remain passive, including under memory pressure.
-    }
-}
 void OpenAxisController::render_diagnostics(bool &visible) {
+    if (visible) {
+        if (ImGui::Begin("OpenAxis Diagnostics", &visible,
+                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
+            if (ImGui::Checkbox("Enable navigation", &m_enabled)) {
+                if (!m_enabled) deactivate();
+                m_redraw();
+            }
+            ImGui::Text("Rotatrix: %s", m_connection.status().state.c_str());
+            ImGui::Text("Focus: %s | Gesture: %s", m_focused ? "Yes" : "No",
+                        m_session.active() ? "Active" : "Idle");
+        }
+        ImGui::End();
+    }
     m_diagnostics_visible = visible;
+    m_collector.set_enabled(visible && m_enabled && viewport_available());
+    m_collector.set_context(m_context);
     render_overlay();
     schedule_diagnostic_expiry();
-    if (!visible)
-        return;
-    ImGui::SetNextWindowSize(ImVec2(680, 420), ImGuiCond_FirstUseEver);
-    if (ImGui::Begin("OpenAxis Diagnostics", &visible)) {
-        if (ImGui::Checkbox("Enable OpenAxis navigation", &m_enabled)) {
-            if (!m_enabled)
-                deactivate();
-            m_redraw();
-        }
-        ImGui::Text("Rotatrix: %s | Navigation focus: %s | Gesture: %s",
-                    connection_status().c_str(), m_focused ? "Yes" : "No",
-                    m_session.active() ? "Active" : "Idle");
-        ImGui::Text("Endpoint: ws://127.0.0.1:6607 | Camera writes: %llu",
-                    static_cast<unsigned long long>(m_camera_writes));
-        ImGui::TextUnformatted(
-            "SDK query evidence, writes, corrections and transport errors. Latest 250 entries.");
-        if (ImGui::Checkbox("Viewport diagnostics", &m_overlay_visible)) {
-            m_collector.set_enabled(m_overlay_visible && viewport_available());
-            m_redraw();
-        }
-        ImGui::SameLine();
-        ImGui::TextUnformatted("Pivot remains visible independently.");
-        ImGui::Checkbox("Pause logging", &m_diagnostics_paused);
-        ImGui::SameLine();
-        ImGui::Checkbox("Include camera writes", &m_diagnostics_writes);
-        ImGui::SameLine();
-        ImGui::Checkbox("Auto-scroll", &m_diagnostics_autoscroll);
-        if (ImGui::Button("Copy log")) {
-            std::string report =
-                "PrusaSlicer OpenAxis diagnostics\nEndpoint: ws://127.0.0.1:6607\n";
-            report += connection_status() + "\n";
-            for (const auto &line : m_diagnostic_log)
-                report += line + "\n";
-            ImGui::SetClipboardText(report.c_str());
-        }
-        ImGui::SameLine();
-        if (ImGui::Button("Clear log")) {
-            m_diagnostic_log.clear();
-            m_diagnostics_dirty = true;
-        }
-        ImGui::Separator();
-        ImGui::BeginChild("OpenAxis event log", ImVec2(0, 0), false,
-                          ImGuiWindowFlags_HorizontalScrollbar);
-        for (const auto &line : m_diagnostic_log)
-            ImGui::TextUnformatted(line.c_str());
-        if (m_diagnostics_autoscroll && m_diagnostics_dirty)
-            ImGui::SetScrollHereY(1.0f);
-        m_diagnostics_dirty = false;
-        ImGui::EndChild();
-    }
-    ImGui::End();
-    m_diagnostics_visible = visible;
 }
 std::string OpenAxisController::context_key() const {
     if (!viewport_available()) return "unavailable";
@@ -397,7 +311,7 @@ void OpenAxisController::render_indicator() {
     draw->AddCircleFilled(pixel, 4.f, IM_COL32(0, 255, 0, alpha));
 }
 void OpenAxisController::render_overlay() {
-    if (!m_overlay_visible || !viewport_available())
+    if (!m_diagnostics_visible || !viewport_available())
         return;
     const auto frame = m_collector.presentation();
     if (frame.context != context_key())

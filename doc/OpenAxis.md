@@ -30,9 +30,10 @@ gizmo handles. Unlike 3.0, 2.9 has no selectable bed objects, so beds participat
 only in ordinary picks. Preview geometry without mesh raycasters supplies no
 surface hit, allowing the server to use its fallback policy.
 
-Open Help > OpenAxis Diagnostics for connection status, camera-write counts,
-a bounded event log, copy/clear/pause controls and optional viewport diagnostics.
-The green pivot marker is visible independently of diagnostic overlays and fades
+Open Help > OpenAxis Diagnostics for navigation, connection and focus status.
+Viewport diagnostics are enabled while this compact panel is open. Use the
+external Rotatrix log viewer for logs. The green pivot marker remains visible
+independently of the panel and fades
 when its center is occluded by scene geometry.
 
 The standalone tests in tests/openaxis cover clipping and viewport/DPI mapping.

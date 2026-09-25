@@ -2,7 +2,6 @@
 #include <optional>
 #include <chrono>
 #include "Camera.hpp"
-#include <deque>
 #include <functional>
 #include <openaxis/navigation.hpp>
 #include <openaxis/connection_manager.hpp>
@@ -35,10 +34,8 @@ class OpenAxisController final : public openaxis::NavigationAdapter {
     std::optional<openaxis::Pose> read_camera();
     bool write_camera(const openaxis::Pose &);
     void pivot(std::optional<openaxis::Vec3>);
-    void record_diagnostic(std::string text, const std::string &level = "info") noexcept;
     bool viewport_available() const;
     void render_overlay();
-    std::string connection_status() const;
     GLCanvas3D &m_canvas;
     Camera &m_camera;
     Transform3d m_last_view{Transform3d::Identity()};
@@ -56,18 +53,10 @@ class OpenAxisController final : public openaxis::NavigationAdapter {
     int m_width = 0, m_height = 0;
     double m_scale = 1;
     std::string m_context;
-    bool m_overlay_visible = false;
     bool m_enabled = true;
     bool m_focused = false;
     int m_x = 0, m_y = 0;
     std::optional<openaxis::Vec3> m_pivot;
-    std::deque<std::string> m_diagnostic_log;
-    const std::chrono::steady_clock::time_point m_log_start = std::chrono::steady_clock::now();
     bool m_diagnostics_visible = false;
-    bool m_diagnostics_paused = false;
-    bool m_diagnostics_writes = false;
-    bool m_diagnostics_autoscroll = true;
-    bool m_diagnostics_dirty = false;
-    std::uint64_t m_camera_writes = 0;
 };
 } // namespace Slic3r::GUI
