@@ -22,12 +22,13 @@ for package in "${packages[@]}"; do
   assets+=("$package" "$package.sha256")
 done
 
-tag="openaxis-preview-$GITHUB_SHA"
+tag=${GITHUB_REF_NAME:?Release tag is required}
+[[ "$tag" =~ ^.+-rotatrix\.[1-9][0-9]*-(alpha|beta|rc)\.[1-9][0-9]*$ ]] || { echo 'Only explicit Rotatrix prerelease tags are supported by preview packaging' >&2; exit 1; }
 # Listing fails closed on API/auth errors and includes drafts visible to this token.
 existing=$(gh api --paginate "repos/$GH_REPO/releases" --jq ".[] | select(.tag_name == \"$tag\") | [.draft, .prerelease, .target_commitish] | @tsv")
 if [[ -n "$existing" ]]; then
-  [[ "$existing" == $'true\ttrue\t'"$GITHUB_SHA" ]] || { echo 'Existing release is not a matching draft prerelease; leaving it unchanged.' >&2; exit 1; }
-  gh release upload "$tag" "${assets[@]}" --clobber
+  echo 'A release already exists for this immutable tag; leaving it unchanged.' >&2
+  exit 1
 else
   notes=$(mktemp)
   trap 'rm -f "$notes"' EXIT
@@ -42,6 +43,6 @@ These previews have STEP support disabled. Windows is unsigned; macOS is ad-hoc 
 
 GUI and Rotatrix hardware testing remain required before publication.
 EOF
-  gh release create "$tag" "${assets[@]}" --draft --prerelease \
-    --target "$GITHUB_SHA" --title "OpenAxis preview ${GITHUB_SHA:0:12}" --notes-file "$notes"
+  gh release create "$tag" "${assets[@]}" --verify-tag --prerelease \
+    --title "$tag" --notes-file "$notes"
 fi

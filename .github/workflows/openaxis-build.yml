@@ -2,7 +2,10 @@ name: OpenAxis desktop builds
 
 on:
   push:
-    branches: [rotatrix]
+    branches: ['rotatrix/**']
+  pull_request:
+    branches: ['rotatrix/*']
+  workflow_call:
   workflow_dispatch:
     inputs:
       platform:
@@ -19,6 +22,15 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  release-checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Test release safeguards
+        run: bash .github/scripts/test-release.sh
+
   desktop:
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
@@ -106,30 +118,3 @@ jobs:
             build-ci/openaxis-checks/Testing/Temporary/LastTest.log
             build-ci/openaxis-tests/Testing/Temporary/LastTest.log
           retention-days: 14
-
-  draft-prerelease:
-    name: Draft prerelease
-    needs: desktop
-    if: github.ref == 'refs/heads/rotatrix' && (github.event_name == 'push' || inputs.platform == 'all')
-    runs-on: ubuntu-24.04
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
-        with:
-          name: PrusaSlicer-Rotatrix-windows-x64-${{ github.sha }}
-          path: release-assets
-      - uses: actions/download-artifact@v4
-        with:
-          name: PrusaSlicer-Rotatrix-macos-arm64-${{ github.sha }}
-          path: release-assets
-      - uses: actions/download-artifact@v4
-        with:
-          name: PrusaSlicer-Rotatrix-linux-x64-${{ github.sha }}
-          path: release-assets
-      - name: Validate packages and create draft
-        env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: bash .github/scripts/draft-prerelease.sh release-assets

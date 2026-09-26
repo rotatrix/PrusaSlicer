@@ -4,8 +4,10 @@ on:
   push:
     branches-ignore:
       - rotatrix
+      - 'rotatrix/**'
     tags:
       - 'version_*'
+      - '!*-rotatrix.*'
   workflow_dispatch:
     inputs:
       create_pdb:

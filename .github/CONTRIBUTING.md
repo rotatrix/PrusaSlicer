@@ -1,5 +1,12 @@
 # Contribution guidelines
 
+For Rotatrix/OpenAxis changes, follow the [fork workflow](../doc/Rotatrix-workflow.md).
+Branch from the relevant maintained `rotatrix/<upstream-tag>` branch and target
+your PR there. This version is currently a work branch; coordinate ongoing work
+against `rotatrix/work/version_3.0.0-alpha11` until it is promoted. Report
+Rotatrix-specific issues in this fork's tracker. The upstream guidelines below
+apply when contributing to PrusaSlicer itself.
+
 You can contribute to the PrusaSlicer project by reporting a bug or creating a pull request. Before reporting a bug, make sure to read the [Issue tracker policy](#issue-tracker-policy). Before creating a pull request, make sure to read the [Submitting a pull request](#submitting-a-pull-request) section.
 
 ## Issue tracker policy

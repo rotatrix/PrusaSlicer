@@ -4,6 +4,10 @@
 
 Unofficial PrusaSlicer build with Rotatrix integration. This build is not an official Prusa Research release.
 
+Rotatrix development currently lives on `rotatrix/work/version_3.0.0-alpha11`.
+See the [fork workflow](doc/Rotatrix-workflow.md) for branches and contributions,
+and [test builds](doc/OpenAxis-CI.md) for downloadable CI artifacts.
+
 PrusaSlicer enables you to take your 3D models, generate 3D printing instructions and send them to your 3D printer. It supports both FDM 3D printers and mSLA 3D printers. It is developed by [Prusa Research](https://www.prusa3d.com/) and apart from Prusa printers it supports machines from a wide variety of manufacturers.
 
 PrusaSlicer is originally based on [Slic3r](https://github.com/Slic3r/Slic3r) by Alessandro Ranellucci and the RepRap community.

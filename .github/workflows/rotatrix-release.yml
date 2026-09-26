@@ -1,0 +1,44 @@
+name: Rotatrix tagged release
+
+on:
+  push:
+    tags: ['*-rotatrix.*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: rotatrix-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Validate tag and release readiness
+        run: bash .github/scripts/validate-release.sh
+
+  desktop:
+    needs: validate
+    uses: ./.github/workflows/openaxis-build.yml
+
+  publish:
+    needs: desktop
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: PrusaSlicer-Rotatrix-*-${{ github.sha }}
+          merge-multiple: true
+          path: release-assets
+      - name: Publish immutable tagged prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: bash .github/scripts/publish-prerelease.sh release-assets

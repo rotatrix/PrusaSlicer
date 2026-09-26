@@ -2,20 +2,23 @@
 
 `OpenAxis desktop builds` is a self-contained GitHub Actions workflow. It builds
 Windows x64, macOS ARM64 and Ubuntu 24.04 x64 independently on pushes to
-`rotatrix`, or by manual dispatch. It does not call Prusa's private workflows.
+`rotatrix/**`, pull requests targeting maintained `rotatrix/*` branches, or by
+manual dispatch. It does not call Prusa's private workflows.
 Manual dispatch accepts a platform selector to retry one platform independently.
 Packages are unsigned previews with OpenAxis enabled and STEP support disabled.
 macOS receives an ad-hoc signature, not Apple notarization. Windows mesh repair is
 also disabled.
 
-After all three platforms pass in a full matrix run, CI creates a draft
-prerelease named `OpenAxis preview <commit>`. It uploads all three packages and
-their verified SHA256 checksums from that same run and source commit. The draft
-targets the full commit SHA and is never published automatically. Rerunning the
-release job updates that commit's existing draft; published releases are left
-unchanged. Standalone platform dispatches do not create releases. To recover a
-failed full matrix, use GitHub's **Re-run failed jobs** so successful artifacts
-remain associated with the same run, or dispatch `all` again.
+Routine builds upload temporary artifacts, named with the source SHA and retained
+for 14 days. They create no tags or releases. To recover a failed full matrix,
+use GitHub's **Re-run failed jobs** or dispatch `all` again.
+
+Permanent test builds require an explicit tag such as
+`version_3.0.0-alpha11-rotatrix.1-beta.1`. The tagged release workflow builds all
+three platforms, verifies their checksums, and publishes a GitHub prerelease.
+It never overwrites an existing release. Final releases are deliberately blocked
+while this work branch uses preview packaging; see the
+[fork lifecycle and release prerequisites](Rotatrix-workflow.md).
 
 Download each package artifact from the Actions run. ZIPs and tarballs contain
 resources, dependency notices, source revision information and runtime setup
