@@ -3,7 +3,9 @@ name: Build osx
 on:
   push:
     branches-ignore:
-      - rotatrix-prusaslicer-2.9.6
+      - 'rotatrix/**'
+    tags-ignore:
+      - '*-rotatrix.*'
   workflow_dispatch:
 
 jobs:

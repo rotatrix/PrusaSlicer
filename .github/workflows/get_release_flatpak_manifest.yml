@@ -10,7 +10,8 @@ on:
 
   push:
     tags:
-      - '*'
+      - 'version_*'
+      - '!*-rotatrix.*'
 
 jobs:
   bundle_flatpak:
