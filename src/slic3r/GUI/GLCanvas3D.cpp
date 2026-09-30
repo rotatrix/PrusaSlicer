@@ -43,6 +43,9 @@
 #include "Plater.hpp"
 #include "MainFrame.hpp"
 #include "GUI_App.hpp"
+#ifdef SLIC3R_OPENAXIS
+#include "OpenAxisController.hpp"
+#endif
 #include "GUI_ObjectList.hpp"
 #include "GUI_ObjectManipulation.hpp"
 #include "Mouse3DController.hpp"
@@ -1356,9 +1359,8 @@ GLCanvas3D::GLCanvas3D(wxGLCanvas *canvas, Bed3D &bed)
 GLCanvas3D::~GLCanvas3D()
 {
 #ifdef SLIC3R_OPENAXIS
-    if (m_openaxis_scheduler) m_openaxis_scheduler->before_dispatch = {};
-    m_openaxis.reset();
-    m_openaxis_scheduler.reset();
+    if (auto *openaxis = OpenAxisController::instance())
+        openaxis->canvas_destroyed(*this);
 #endif
     reset_volumes();
 }
@@ -1369,21 +1371,33 @@ void GLCanvas3D::update_openaxis_projection()
     wxGetApp().plater()->get_camera().apply_projection(_max_bounding_box(true));
 }
 
-void GLCanvas3D::refresh_openaxis()
+std::optional<Vec3d> GLCanvas3D::openaxis_gcode_hit(const Vec2d& pixel)
 {
-    if (!m_openaxis || !m_canvas) return;
-    const Size size = get_canvas_size();
-    const wxPoint cursor = m_canvas->ScreenToClient(wxGetMousePosition());
-    // wx coordinates are logical on Retina; the camera viewport is physical.
-#if ENABLE_RETINA_GL
-    const double scale = size.get_scale_factor();
-#else
-    const double scale = 1.0;
-#endif
-    const bool focused = m_canvas->IsShownOnScreen() && m_canvas->IsEnabled() &&
-        wxTheApp->IsActive() && wxGetApp().plater()->get_current_canvas3D() == this;
-    m_openaxis->refresh(focused, int(cursor.x * scale), int(cursor.y * scale),
-                       size.get_width(), size.get_height(), scale);
+    // Toolpaths have no raycasters. Redraw only their depth into the back buffer and
+    // read the requested sample; the next frame clears and redraws the scene.
+    if (!openaxis_is_preview() || current_printer_technology() == ptSLA || !m_gcode_viewer.has_data() || !_set_current())
+        return std::nullopt;
+    const Camera& camera = wxGetApp().plater()->get_camera();
+    const Vec4i viewport(camera.get_viewport().data());
+    const int x = int(pixel.x()), y = viewport[3] - 1 - int(pixel.y());
+    if (x < 0 || x >= viewport[2] || y < 0 || y >= viewport[3])
+        return std::nullopt;
+    glsafe(::glViewport(viewport[0], viewport[1], viewport[2], viewport[3]));
+    glsafe(::glColorMask(GL_FALSE, GL_FALSE, GL_FALSE, GL_FALSE));
+    glsafe(::glClear(GL_DEPTH_BUFFER_BIT));
+    glsafe(::glEnable(GL_DEPTH_TEST));
+    glsafe(::glDepthMask(GL_TRUE));
+    _render_gcode();
+    glsafe(::glColorMask(GL_TRUE, GL_TRUE, GL_TRUE, GL_TRUE));
+    float depth = 1.0f;
+    glsafe(::glReadPixels(viewport[0] + x, viewport[1] + y, 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth));
+    set_as_dirty();
+    if (!(depth < 1.0f))
+        return std::nullopt;
+    Vec3d out;
+    igl::unproject(Vec3d(pixel.x(), viewport[3] - pixel.y(), double(depth)), camera.get_view_matrix().matrix(),
+        camera.get_projection_matrix().matrix(), viewport, out);
+    return out;
 }
 #endif
 
@@ -2155,15 +2169,8 @@ void GLCanvas3D::render()
     camera.apply_projection(_max_bounding_box(true));
 
 #ifdef SLIC3R_OPENAXIS
-    if (!m_openaxis) {
-        m_openaxis_scheduler = std::make_shared<OpenAxisScheduler>();
-        m_openaxis = std::make_unique<OpenAxisController>(*this, camera, m_openaxis_scheduler, [this] {
-            set_as_dirty();
-            if (m_canvas) m_canvas->Refresh(false);
-        });
-        m_openaxis_scheduler->before_dispatch = [this] { refresh_openaxis(); };
-    }
-    refresh_openaxis();
+    if (auto *openaxis = OpenAxisController::instance())
+        openaxis->poll();
 #endif
 
     const int curr_active_bed_id = s_multiple_beds.get_active_bed();
@@ -2213,7 +2220,8 @@ void GLCanvas3D::render()
             _render_gcode();
         _render_objects(GLVolumeCollection::ERenderType::Transparent);
 #ifdef SLIC3R_OPENAXIS
-        m_openaxis->render_indicator();
+        if (auto *openaxis = OpenAxisController::instance())
+            openaxis->render_indicator(*this);
 #endif
 
     #if ENABLE_RENDER_SELECTION_CENTER
@@ -2357,7 +2365,8 @@ void GLCanvas3D::render()
 
     wxGetApp().plater()->get_mouse3d_controller().render_settings_dialog(*this);
 #ifdef SLIC3R_OPENAXIS
-    m_openaxis->render_diagnostics(m_openaxis_diagnostics);
+    if (auto *openaxis = OpenAxisController::instance())
+        openaxis->render_diagnostics(*this);
 #endif
 
     wxGetApp().plater()->get_notification_manager()->render_notifications(*this, get_overlay_window_width());

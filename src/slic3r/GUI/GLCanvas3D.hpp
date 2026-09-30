@@ -21,10 +21,6 @@
 #include "libslic3r/GCode/GCodeProcessor.hpp"
 #include "GCodeViewer.hpp"
 #include "Camera.hpp"
-#ifdef SLIC3R_OPENAXIS
-#include "OpenAxisController.hpp"
-#include "OpenAxisScheduler.hpp"
-#endif
 #include "SceneRaycaster.hpp"
 #include "GUI_Utils.hpp"
 
@@ -494,11 +490,7 @@ public:
 private:
     wxGLCanvas* m_canvas;
 #ifdef SLIC3R_OPENAXIS
-    std::shared_ptr<OpenAxisScheduler> m_openaxis_scheduler;
-    std::unique_ptr<OpenAxisController> m_openaxis;
-    bool m_openaxis_diagnostics = false;
     std::uint64_t m_openaxis_scene_revision = 0;
-    void refresh_openaxis();
 #endif
     wxGLContext* m_context;
     SceneRaycaster m_scene_raycaster;
@@ -686,9 +678,13 @@ public:
 
     bool is_initialized() const { return m_initialized; }
 #ifdef SLIC3R_OPENAXIS
-    void toggle_openaxis_diagnostics() { m_openaxis_diagnostics = !m_openaxis_diagnostics; set_as_dirty(); }
     std::uint64_t openaxis_scene_revision() const { return m_openaxis_scene_revision; }
     void update_openaxis_projection();
+    // Preview draws G-code instead of the plater's main toolbar and objects.
+    bool openaxis_is_preview() const { return !m_main_toolbar.is_enabled(); }
+    BoundingBoxf3 openaxis_gcode_bounds() const { return m_gcode_viewer.get_paths_bounding_box(); }
+    // World-space toolpath surface at a physical viewport pixel, from rendered depth.
+    std::optional<Vec3d> openaxis_gcode_hit(const Vec2d& pixel);
 #endif
 
     void set_context(wxGLContext* context) { m_context = context; }

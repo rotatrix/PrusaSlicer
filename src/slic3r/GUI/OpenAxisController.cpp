@@ -1,9 +1,16 @@
 #include "OpenAxisController.hpp"
 #include "OpenAxisOverlay.hpp"
+#include "OpenAxisScheduler.hpp"
+#include "3DScene.hpp"
 #include "GLCanvas3D.hpp"
+#include "GLShader.hpp"
+#include "GUI_App.hpp"
+#include "Plater.hpp"
 #include "libslic3r/MultipleBeds.hpp"
+#include "libslic3r/libslic3r.h"
 #include <imgui/imgui.h>
-#include <openaxis/logging.hpp>
+#include <wx/dialog.h>
+#include <wx/glcanvas.h>
 #include <sstream>
 #include <cmath>
 #include <limits>
@@ -11,6 +18,7 @@
 namespace Slic3r::GUI {
 using openaxis::Value;
 namespace {
+OpenAxisController *s_instance = nullptr;
 openaxis::Vec3 vector(const Vec3d &v) { return {v.x(), v.y(), v.z()}; }
 Vec3d vector(openaxis::Vec3 v) { return {v.x, v.y, v.z}; }
 Value bounds_value(const BoundingBoxf3 &b) {
@@ -20,19 +28,48 @@ Value bounds_value(const BoundingBoxf3 &b) {
             {"max", {b.max.x(), b.max.y(), b.max.z()}}};
 }
 openaxis::OpenAxisClientOptions options(openaxis::Scheduler *scheduler) {
-    openaxis::DiagnosticLog::configure("prusaslicer");
     openaxis::OpenAxisClientOptions o;
     o.client_name = "PrusaSlicer";
+    o.client_version = SLIC3R_VERSION;
     o.scheduler = scheduler;
-    o.target = {{"pid", openaxis::current_process_id()}};
+    o.target = {{"pid", openaxis::current_process_id()}, {"app_version", SLIC3R_VERSION}};
     return o;
 }
+// Modal dialogs belong to the active application, so activation alone does not
+// mean the viewport is receiving interaction.
+bool modal_dialog_open() {
+    for (auto *node = wxTopLevelWindows.GetFirst(); node; node = node->GetNext())
+        if (auto *dialog = dynamic_cast<wxDialog *>(node->GetData()); dialog && dialog->IsShown() && dialog->IsModal())
+            return true;
+    return false;
+}
+// Screen-facing disc geometry in logical pixels around the origin.
+void init_disc(GLModel &model, float inner, float outer) {
+    constexpr unsigned segments = 32;
+    GLModel::Geometry data;
+    data.format = {GLModel::Geometry::EPrimitiveType::Triangles, GLModel::Geometry::EVertexLayout::P3};
+    for (unsigned k = 0; k < segments; ++k) {
+        const float a = float(2 * M_PI * k / segments);
+        data.add_vertex(Vec3f(inner * std::cos(a), inner * std::sin(a), 0.f));
+        data.add_vertex(Vec3f(outer * std::cos(a), outer * std::sin(a), 0.f));
+    }
+    if (inner == 0.f)
+        for (unsigned k = 0; k < segments; ++k)
+            data.add_triangle(2 * k, 2 * k + 1, 2 * ((k + 1) % segments) + 1);
+    else
+        // An annulus avoids blending a translucent fill over a second black disc.
+        for (unsigned k = 0; k < segments; ++k) {
+            const unsigned n = (k + 1) % segments;
+            data.add_triangle(2 * k, 2 * k + 1, 2 * n + 1);
+            data.add_triangle(2 * k, 2 * n + 1, 2 * n);
+        }
+    model.init_from(std::move(data));
+}
 } // namespace
-OpenAxisController::OpenAxisController(GLCanvas3D &canvas, Camera &camera,
-                                       std::shared_ptr<openaxis::Scheduler> scheduler,
-                                       std::function<void()> redraw)
-    : m_canvas(canvas), m_camera(camera), m_redraw(std::move(redraw)),
-      m_scheduler(std::move(scheduler)), m_client(options(m_scheduler.get())),
+OpenAxisController *OpenAxisController::instance() { return s_instance; }
+OpenAxisController::OpenAxisController(Camera &camera)
+    : m_camera(camera), m_log(openaxis::DiagnosticLog::configure("prusaslicer", {}, SLIC3R_VERSION)),
+      m_scheduler(std::make_shared<OpenAxisScheduler>()), m_client(options(m_scheduler.get())),
       m_session(
           m_client, *this, &m_collector,
           [this] {
@@ -45,26 +82,38 @@ OpenAxisController::OpenAxisController(GLCanvas3D &canvas, Camera &camera,
           }()),
       m_connection(m_client, {[this] {
           openaxis::ConnectionMetadata metadata;
-          metadata.tags = {"app.prusaslicer", "workspace.modeling"};
+          metadata.tags = {"app.prusaslicer"};
           metadata.capabilities = {"navigation"};
           metadata.focused = m_focused;
           return metadata;
       }}) {
+    s_instance = this;
     m_collector.on_changed = [this] {
         if (m_diagnostics_visible)
-            m_redraw();
+            redraw();
     };
-    m_connection.on_state = [this](const openaxis::ConnectionStatus &status) {
-        // Lifecycle file logging is handled by the SDK.
+    m_connection.on_state = [this](const openaxis::ConnectionStatus &) {
+        // Lifecycle file logging is handled by the SDK; status is a diagnostic row.
         if (m_diagnostics_visible)
-            m_redraw();
+            redraw();
     };
+    m_scheduler->before_dispatch = [this] { poll(); };
     m_connection.start();
 }
 OpenAxisController::~OpenAxisController() {
+    m_scheduler->before_dispatch = {};
     m_lifetime.reset();
     m_connection.stop();
     m_session.close();
+    m_log->close();
+    s_instance = nullptr;
+}
+void OpenAxisController::redraw() {
+    if (!m_canvas)
+        return;
+    m_canvas->set_as_dirty();
+    if (auto *canvas = m_canvas->get_wxglcanvas())
+        canvas->Refresh(false);
 }
 void OpenAxisController::schedule_diagnostic_expiry() {
     if (!m_diagnostics_visible)
@@ -79,30 +128,62 @@ void OpenAxisController::schedule_diagnostic_expiry() {
             return;
         m_diagnostic_deadline.reset();
         if (m_diagnostics_visible)
-            m_redraw();
+            redraw();
     });
 }
-void OpenAxisController::deactivate() {
-    m_session.cancel("viewport_inactive");
-    m_focused = false;
-    m_connection.refresh_metadata();
-    m_connection.stop();
+void OpenAxisController::toggle_diagnostics() {
+    m_diagnostics_visible = !m_diagnostics_visible;
+    m_collector.set_enabled(m_diagnostics_visible && viewport_available());
+    redraw();
+}
+void OpenAxisController::canvas_destroyed(const GLCanvas3D &canvas) {
+    if (&canvas != m_canvas)
+        return;
+    m_canvas = nullptr;
+    m_session.cancel("viewport_closed");
     m_collector.clear();
     m_context.clear();
-    m_redraw();
 }
 bool OpenAxisController::viewport_available() const {
-    return m_canvas.is_initialized() && m_canvas.get_model() && m_width > 0 && m_height > 0;
+    return m_canvas && m_canvas->is_initialized() && m_canvas->get_model() && m_width > 0 && m_height > 0;
 }
-void OpenAxisController::refresh(bool focused, int x, int y, int width, int height, double scale) {
-    m_width = width; m_height = height; m_scale = scale;
+void OpenAxisController::poll() {
+    Plater *plater = wxGetApp().plater();
+    GLCanvas3D *canvas = plater ? plater->get_current_canvas3D() : nullptr;
+    if (canvas != m_canvas) {
+        // The canvas is part of the captured context, so old work cannot reach the new view.
+        m_canvas = canvas;
+        m_session.cancel("viewport_changed");
+        m_collector.clear();
+    }
+    wxGLCanvas *window = canvas ? canvas->get_wxglcanvas() : nullptr;
+    bool focused = false;
+    m_x = m_y = -1;
+    if (window) {
+        const Size size = canvas->get_canvas_size();
+        // wx coordinates are logical on Retina; the camera viewport is physical.
+#if ENABLE_RETINA_GL
+        m_scale = size.get_scale_factor();
+#else
+        m_scale = 1.0;
+#endif
+        m_width = size.get_width();
+        m_height = size.get_height();
+        const wxPoint cursor = window->ScreenToClient(wxGetMousePosition());
+        // Panel hover makes cursor picking unavailable, not camera navigation.
+        // Rotatrix can use its viewport-center fallback.
+        if (!ImGui::GetIO().WantCaptureMouse) {
+            m_x = int(cursor.x * m_scale);
+            m_y = int(cursor.y * m_scale);
+        }
+        focused = window->IsShownOnScreen() && window->IsEnabled() && wxTheApp->IsActive() && !modal_dialog_open();
+    } else
+        m_width = m_height = 0;
     const bool native_changed = !m_last_view.matrix().isApprox(m_camera.get_view_matrix().matrix()) ||
         m_last_zoom != m_camera.get_zoom() || m_last_projection != m_camera.get_type();
     m_last_view = m_camera.get_view_matrix();
     m_last_zoom = m_camera.get_zoom();
     m_last_projection = m_camera.get_type();
-    if (!m_enabled)
-        return;
     const bool available = viewport_available();
     focused = focused && available;
     const std::string context = available ? context_key() : "";
@@ -113,11 +194,6 @@ void OpenAxisController::refresh(bool focused, int x, int y, int width, int heig
     }
     m_collector.set_enabled(m_diagnostics_visible && available);
     m_collector.set_context(context);
-    // Panel hover makes cursor picking unavailable, not camera navigation.
-    // Rotatrix can use its viewport-center fallback; panel keyboard focus
-    // does not interfere with a cursor over the scene.
-    m_x = ImGui::GetIO().WantCaptureMouse ? -1 : x;
-    m_y = ImGui::GetIO().WantCaptureMouse ? -1 : y;
     if (m_focused && !focused)
         m_session.cancel("focus_lost");
     if (m_focused != focused) {
@@ -126,33 +202,19 @@ void OpenAxisController::refresh(bool focused, int x, int y, int width, int heig
     }
     if (native_changed && m_focused && !m_writing_camera)
         m_session.native_camera_changed();
-    m_connection.start();
 }
-void OpenAxisController::render_diagnostics(bool &visible) {
-    if (visible) {
-        if (ImGui::Begin("OpenAxis Diagnostics", &visible,
-                         ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings)) {
-            if (ImGui::Checkbox("Enable navigation", &m_enabled)) {
-                if (!m_enabled) deactivate();
-                m_redraw();
-            }
-            ImGui::Text("Rotatrix: %s", m_connection.status().state.c_str());
-            ImGui::Text("Focus: %s | Gesture: %s", m_focused ? "Yes" : "No",
-                        m_session.active() ? "Active" : "Idle");
-        }
-        ImGui::End();
-    }
-    m_diagnostics_visible = visible;
-    m_collector.set_enabled(visible && m_enabled && viewport_available());
-    m_collector.set_context(m_context);
+void OpenAxisController::render_diagnostics(GLCanvas3D &canvas) {
+    if (&canvas != m_canvas)
+        return;
     render_overlay();
     schedule_diagnostic_expiry();
 }
 std::string OpenAxisController::context_key() const {
-    if (!viewport_available()) return "unavailable";
-    return std::to_string(m_canvas.get_model()->id().id) + "/" +
-        std::to_string(m_canvas.openaxis_scene_revision()) + "/" +
-        std::to_string(reinterpret_cast<std::uintptr_t>(&m_canvas)) + "/" +
+    if (!viewport_available())
+        return "unavailable";
+    return std::to_string(m_canvas->get_model()->id().id) + "/" +
+        std::to_string(m_canvas->openaxis_scene_revision()) + "/" +
+        std::to_string(reinterpret_cast<std::uintptr_t>(m_canvas)) + "/" +
         std::to_string(s_multiple_beds.get_active_bed()) + "/" +
         std::to_string(m_width) + "/" + std::to_string(m_height) + "/" + std::to_string(m_scale);
 }
@@ -172,12 +234,12 @@ struct OpenAxisController::QueryCapture final : openaxis::NavigationCapture {
     }
 };
 openaxis::NavigationContext OpenAxisController::capture_context() {
-    if (!m_enabled || !m_focused || !viewport_available()) return {};
+    if (!m_focused || !viewport_available()) return {};
     return context_key();
 }
 bool OpenAxisController::is_current(const openaxis::NavigationContext &context) {
     const auto *key = std::any_cast<std::string>(&context);
-    return key && m_enabled && m_focused && viewport_available() && *key == context_key();
+    return key && m_focused && viewport_available() && *key == context_key();
 }
 std::unique_ptr<openaxis::NavigationCapture>
 OpenAxisController::begin_query(const openaxis::NavigationContext &context) {
@@ -214,7 +276,7 @@ std::optional<openaxis::Pose> OpenAxisController::read_camera() {
 bool OpenAxisController::write_camera(const openaxis::Pose &p) {
     if (!m_focused || !viewport_available())
         return false;
-    // Native camera listeners also see adapter writes. Their realized result is
+    // Native change polling also sees adapter writes. Their realized result is
     // already returned to the SDK; do not emit a duplicate input notification.
     struct Writing {
         bool &flag;
@@ -222,99 +284,169 @@ bool OpenAxisController::write_camera(const openaxis::Pose &p) {
         ~Writing() { flag = false; }
     } writing(m_writing_camera);
     auto &c = m_camera;
-    c.set_type(p.fov > 0 ? Camera::EType::Perspective : Camera::EType::Ortho);
     auto q = openaxis::Quat::from_rotvec(p.r);
     const Vec3d position = vector(p.t), forward = vector(q.rotate({0, 0, -1}));
-    // Preserve the native orbit radius while updating its quaternion and target.
-    // Native mouse input then continues from exactly the realized SDK pose.
-    const double distance = std::max(1.0, m_pivot ? (position - vector(*m_pivot)).norm() : c.get_distance());
+    // Keep the native orbit radius so mouse orbit continues around the camera's own target.
+    const double distance = std::max(1.0, c.get_distance());
     c.look_at(position, position + distance * forward, vector(q.rotate({0, 1, 0})));
-    c.set_zoom(p.fov > 0 ? m_height / (2 * distance * std::tan(p.fov / 2)) : m_height / p.ortho_extent);
-    m_canvas.update_openaxis_projection();
+    // The projection is the user's preference, persisted by Camera::set_type; a pose
+    // never switches it. A mismatched pose keeps the zoom and the readback lets the
+    // SDK rebase the server onto the native projection.
+    const double height = c.get_viewport()[3];
+    if (c.get_type() == Camera::EType::Perspective && p.fov > 0)
+        c.set_zoom(height / (2 * distance * std::tan(p.fov / 2)));
+    else if (c.get_type() == Camera::EType::Ortho && p.ortho_extent > 0)
+        c.set_zoom(height / p.ortho_extent);
+    m_canvas->update_openaxis_projection();
     m_last_view = c.get_view_matrix();
     m_last_zoom = c.get_zoom();
     m_last_projection = c.get_type();
-    m_redraw();
+    redraw();
     return true;
 }
 void OpenAxisController::pivot(std::optional<openaxis::Vec3> p) {
     m_pivot = p;
-    m_redraw();
+    redraw();
 }
 Value OpenAxisController::fact(const std::string &name) {
     if (!m_focused || !viewport_available()) return nullptr;
     const auto &c = m_camera;
-    if (name == "document.id") return std::to_string(m_canvas.get_model()->id().id);
+    if (name == "document.id")
+        return wxGetApp().is_gcode_viewer() ? Value{} : Value(std::to_string(m_canvas->get_model()->id().id));
     if (name == "world.orientation") return {{"forward", {0, 1, 0}}, {"up", {0, 0, 1}}, {"handedness", "right"}};
     if (name == "camera.view_target") return openaxis::vector_value(vector(c.get_target()));
     if (name == "viewport.aspect") return double(m_width) / m_height;
     const bool inside = m_x >= 0 && m_x < m_width && m_y >= 0 && m_y < m_height;
     if (name == "viewport.cursor" && inside)
         return {{"x", 2. * m_x / m_width - 1}, {"y", 1 - 2. * m_y / m_height}};
-    const auto &volumes = m_canvas.get_volumes().volumes;
-    const auto &selected = m_canvas.get_selection().get_volume_idxs();
-    if (name == "model.bounds" || name == "selection.bounds") {
+    const auto &volumes = m_canvas->get_volumes().volumes;
+    const auto &selected = m_canvas->get_selection().get_volume_idxs();
+    if (name == "model.bounds") {
+        BoundingBoxf3 bounds;
+        for (const auto *volume : volumes)
+            if (volume->is_active && !volume->disabled)
+                bounds.merge(volume->transformed_bounding_box());
+        if (m_canvas->openaxis_is_preview())
+            bounds.merge(m_canvas->openaxis_gcode_bounds());
+        return bounds_value(bounds);
+    }
+    if (name == "selection.bounds") {
+        // Preview has no editable selection; object selection is the only selection.
+        if (m_canvas->openaxis_is_preview())
+            return nullptr;
         BoundingBoxf3 bounds;
         for (unsigned i = 0; i < volumes.size(); ++i)
-            if (volumes[i]->is_active && !volumes[i]->disabled && (name == "model.bounds" || selected.count(i)))
+            if (volumes[i]->is_active && !volumes[i]->disabled && selected.count(i))
                 bounds.merge(volumes[i]->transformed_bounding_box());
         return bounds_value(bounds);
     }
-    const bool center = name == "pick.viewport_center" || name == "pick.viewport_center.selection";
-    const bool cursor = name == "pick.cursor" || name == "pick.cursor.selection";
-    if ((center || cursor) && (center || inside)) {
-        const bool only = name.find(".selection") != std::string::npos;
-        const Vec2d pixel(center ? m_width * .5 : m_x, center ? m_height * .5 : m_y);
-        Value result = {{"markerPosition", {pixel.x() / m_scale, pixel.y() / m_scale}}};
-        double closest = std::numeric_limits<double>::max();
-        auto test = [&](const SceneRaycasterItem &item, const Transform3d &transform, const GLVolume *volume) {
-            Vec3f point, normal;
-            if (!item.is_active() || !item.get_raycaster()->closest_hit(pixel, transform, c, point, normal, nullptr)) return;
-            const Vec3d world = transform * point.cast<double>();
-            const Vec3d world_normal = (transform.linear().inverse().transpose() * normal.cast<double>()).normalized();
-            if (!item.use_back_faces() && world_normal.dot(c.get_dir_forward()) >= 0) return;
-            const double distance = (world - c.get_position()).squaredNorm();
-            if (distance >= closest) return;
-            closest = distance;
-            result = {{"point", openaxis::vector_value(vector(world))}, {"markerPosition", {pixel.x() / m_scale, pixel.y() / m_scale}}};
-            if (volume) result["bounds"] = bounds_value(volume->transformed_bounding_box());
-        };
-        for (const auto &item : *m_canvas.get_raycasters_for_picking(SceneRaycaster::EType::Volume)) {
-            const int id = SceneRaycaster::decode_id(SceneRaycaster::EType::Volume, item->get_id());
-            if (id >= 0 && size_t(id) < volumes.size() && !volumes[id]->disabled && (!only || selected.count(id)))
-                test(*item, item->get_transform(), volumes[id]);
-        }
-        // 2.9 has no selectable bed objects. Beds participate only in ordinary picks.
-        if (!only && c.is_looking_downward())
-            for (const auto &item : *m_canvas.get_raycasters_for_picking(SceneRaycaster::EType::Bed))
-                for (int bed = 0; bed < s_multiple_beds.get_number_of_beds(); ++bed) {
-                    Transform3d transform = item->get_transform();
-                    transform.translate(s_multiple_beds.get_bed_translation(bed));
-                    test(*item, transform, nullptr);
-                }
-        return result;
-    }
+    if (name.rfind("pick.", 0) == 0)
+        return pick(name, inside);
     return nullptr;
 }
-void OpenAxisController::render_indicator() {
-    if (!m_pivot || !viewport_available() || context_key() != m_context) return;
-    const Vec4d clip = m_camera.get_projection_matrix().matrix() * m_camera.get_view_matrix().matrix() * Vec4d(m_pivot->x, m_pivot->y, m_pivot->z, 1);
+Value OpenAxisController::pick(const std::string &name, bool inside) {
+    const bool center = name == "pick.viewport_center" || name == "pick.viewport_center.selection";
+    const bool cursor = name == "pick.cursor" || name == "pick.cursor.selection";
+    if (!(center || (cursor && inside)))
+        return nullptr;
+    const bool only = name.find(".selection") != std::string::npos;
+    const auto &volumes = m_canvas->get_volumes().volumes;
+    const auto &selected = m_canvas->get_selection().get_volume_idxs();
+    // With no selection the test is skipped, not missed: the server tries its next candidate.
+    if (only && (selected.empty() || m_canvas->openaxis_is_preview()))
+        return nullptr;
+    const auto &c = m_camera;
+    const Vec2d pixel(center ? m_width * .5 : m_x, center ? m_height * .5 : m_y);
+    const Value marker = {pixel.x() / m_scale, pixel.y() / m_scale};
+    Value result = {{"markerPosition", marker}};
+    double closest = std::numeric_limits<double>::max();
+    auto accept = [&](const Vec3d &world, const GLVolume *volume) {
+        const double distance = (world - c.get_position()).squaredNorm();
+        if (distance >= closest) return;
+        closest = distance;
+        result = {{"point", openaxis::vector_value(vector(world))}, {"markerPosition", marker}};
+        if (volume) result["bounds"] = bounds_value(volume->transformed_bounding_box());
+    };
+    auto test = [&](const SceneRaycasterItem &item, const Transform3d &transform, const GLVolume *volume,
+                    const ClippingPlane *clipping) {
+        Vec3f point, normal;
+        if (!item.is_active() || !item.get_raycaster()->closest_hit(pixel, transform, c, point, normal, clipping)) return;
+        const Vec3d world = transform * point.cast<double>();
+        const Vec3d world_normal = (transform.linear().inverse().transpose() * normal.cast<double>()).normalized();
+        if (!item.use_back_faces() && world_normal.dot(c.get_dir_forward()) >= 0) return;
+        accept(world, volume);
+    };
+    // Match native hover picking: gizmo clipping applies to volumes only.
+    const ClippingPlane clipping = m_canvas->get_gizmos_manager().get_clipping_plane().inverted_normal();
+    for (const auto &item : *m_canvas->get_raycasters_for_picking(SceneRaycaster::EType::Volume)) {
+        const int id = SceneRaycaster::decode_id(SceneRaycaster::EType::Volume, item->get_id());
+        if (id >= 0 && size_t(id) < volumes.size() && !volumes[id]->disabled && (!only || selected.count(id)))
+            test(*item, item->get_transform(), volumes[id], &clipping);
+    }
+    // Beds are never selection candidates; they participate only in ordinary picks.
+    if (!only && c.is_looking_downward())
+        for (const auto &item : *m_canvas->get_raycasters_for_picking(SceneRaycaster::EType::Bed))
+            for (int bed = 0; bed < s_multiple_beds.get_number_of_beds(); ++bed) {
+                Transform3d transform = item->get_transform();
+                transform.translate(s_multiple_beds.get_bed_translation(bed));
+                test(*item, transform, nullptr, nullptr);
+            }
+    // Toolpaths have no raycasters; use their rendered depth at the same sample.
+    if (!only && m_canvas->openaxis_is_preview())
+        if (const auto hit = m_canvas->openaxis_gcode_hit(pixel))
+            accept(*hit, nullptr);
+    return result;
+}
+void OpenAxisController::render_indicator(GLCanvas3D &canvas) {
+    if (&canvas != m_canvas || !m_pivot || !viewport_available() || context_key() != m_context) return;
+    const Vec4d clip = m_camera.get_projection_matrix().matrix() * m_camera.get_view_matrix().matrix() *
+        Vec4d(m_pivot->x, m_pivot->y, m_pivot->z, 1);
     if (!OpenAxisOverlay::visible({clip.x(), clip.y(), clip.z(), clip.w()})) return;
-    const ImVec2 pixel(float((clip.x() / clip.w() + 1) * .5 * m_width / m_scale), float((1 - clip.y() / clip.w()) * .5 * m_height / m_scale));
-    float depth = 1.f;
-    glReadPixels(std::clamp(int(pixel.x * m_scale), 0, m_width - 1),
-                 std::clamp(m_height - 1 - int(pixel.y * m_scale), 0, m_height - 1),
-                 1, 1, GL_DEPTH_COMPONENT, GL_FLOAT, &depth);
-    const int alpha = (clip.z() / clip.w() + 1) * .5 > depth + 1e-5 ? 64 : 255;
-    auto *draw = ImGui::GetBackgroundDrawList();
-    draw->AddCircle(pixel, 4.75f, IM_COL32(0, 0, 0, alpha), 32, 1.5f);
-    draw->AddCircleFilled(pixel, 4.f, IM_COL32(0, 255, 0, alpha));
+    GLShaderProgram *shader = wxGetApp().get_shader("flat");
+    if (!shader) return;
+    if (!m_pivot_fill.is_initialized()) init_disc(m_pivot_fill, 0.f, 4.f);
+    if (!m_pivot_rim.is_initialized()) init_disc(m_pivot_rim, 4.f, 5.5f);
+    // Place logical-pixel geometry at the pivot's NDC position and depth, applying DPI once.
+    const auto &viewport = m_camera.get_viewport();
+    Transform3d transform = Transform3d::Identity();
+    transform.translate(clip.head<3>() / clip.w());
+    transform.scale(Vec3d(2 * m_scale / viewport[2], 2 * m_scale / viewport[3], 1));
+    GLboolean depth_test, depth_write, blend, cull;
+    GLint depth_func, blend_src, blend_dst;
+    glsafe(::glGetBooleanv(GL_DEPTH_TEST, &depth_test));
+    glsafe(::glGetBooleanv(GL_DEPTH_WRITEMASK, &depth_write));
+    glsafe(::glGetBooleanv(GL_BLEND, &blend));
+    glsafe(::glGetBooleanv(GL_CULL_FACE, &cull));
+    glsafe(::glGetIntegerv(GL_DEPTH_FUNC, &depth_func));
+    glsafe(::glGetIntegerv(GL_BLEND_SRC_ALPHA, &blend_src));
+    glsafe(::glGetIntegerv(GL_BLEND_DST_ALPHA, &blend_dst));
+    glsafe(::glEnable(GL_DEPTH_TEST));
+    glsafe(::glDepthMask(GL_FALSE));
+    glsafe(::glEnable(GL_BLEND));
+    glsafe(::glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA));
+    glsafe(::glDisable(GL_CULL_FACE));
+    shader->start_using();
+    shader->set_uniform("view_model_matrix", transform);
+    shader->set_uniform("projection_matrix", Transform3d::Identity());
+    // Per-fragment depth: visible fragments opaque, occluded fragments faint.
+    for (const bool occluded : {true, false}) {
+        glsafe(::glDepthFunc(occluded ? GL_GREATER : GL_LEQUAL));
+        const float alpha = occluded ? .25f : 1.f;
+        m_pivot_fill.set_color(ColorRGBA(0.f, 1.f, 0.f, alpha));
+        m_pivot_fill.render();
+        m_pivot_rim.set_color(ColorRGBA(0.f, 0.f, 0.f, alpha));
+        m_pivot_rim.render();
+    }
+    shader->stop_using();
+    glsafe(::glDepthFunc(depth_func));
+    glsafe(::glDepthMask(depth_write));
+    glsafe(::glBlendFunc(blend_src, blend_dst));
+    if (!blend) glsafe(::glDisable(GL_BLEND));
+    if (!depth_test) glsafe(::glDisable(GL_DEPTH_TEST));
+    if (cull) glsafe(::glEnable(GL_CULL_FACE));
 }
 void OpenAxisController::render_overlay() {
     if (!m_diagnostics_visible || !viewport_available())
-        return;
-    const auto frame = m_collector.presentation();
-    if (frame.context != context_key())
         return;
     const auto &camera = m_camera;
     const auto &v = camera.get_viewport();
@@ -334,37 +466,51 @@ void OpenAxisController::render_overlay() {
         const auto &c = openaxis::diagnostic_colors().at(tone);
         return IM_COL32(c[0], c[1], c[2], int(255 * opacity));
     };
+    // Connection status is part of the diagnostic presentation; there is no separate panel.
+    const auto status = m_connection.status();
+    std::vector<openaxis::DiagnosticLine> lines{{"OpenAxis: " + status.state, status.state == "ready" ? "pass" : "text"}};
+    if (status.state == "retrying") {
+        const double wait = std::max(0., status.retry_at.value_or(openaxis::diagnostic_time()) - openaxis::diagnostic_time());
+        lines[0] = {"OpenAxis: retrying in " + std::to_string(int(std::ceil(wait))) + " s" +
+                        (status.error.empty() ? "" : " (" + status.error + ")"), "missing"};
+    }
+    auto frame = m_collector.presentation();
+    const bool evidence = frame.context == context_key();
+    if (evidence)
+        lines.insert(lines.end(), frame.lines.begin(), frame.lines.end());
     auto *draw = ImGui::GetBackgroundDrawList();
     auto lo = pixel(viewport.pixel(v[0], viewport.top())),
          hi = pixel(viewport.pixel(v[0] + v[2], viewport.top() + v[3]));
     draw->PushClipRect(lo, hi, true);
-    for (const auto &segment : frame.segments) {
-        auto a = clip(segment.start), b = clip(segment.end);
-        if (OpenAxisOverlay::clip_segment(a, b))
-            draw->AddLine(pixel(viewport.project(a)), pixel(viewport.project(b)),
-                          color(segment.tone, segment.opacity), float(segment.width));
-    }
-    for (const auto &marker : frame.markers) {
-        auto p = pixel(marker.point);
-        auto c = color(marker.tone, .65);
-        draw->AddLine({p.x - 9, p.y}, {p.x + 9, p.y}, IM_COL32_BLACK, 4);
-        draw->AddLine({p.x, p.y - 9}, {p.x, p.y + 9}, IM_COL32_BLACK, 4);
-        draw->AddLine({p.x - 9, p.y}, {p.x + 9, p.y}, c, 2);
-        draw->AddLine({p.x, p.y - 9}, {p.x, p.y + 9}, c, 2);
-        std::istringstream labels(marker.label);
-        std::string label;
-        float y = p.y - 8;
-        while (std::getline(labels, label)) {
-            draw->AddText({p.x + 13, y + 1}, IM_COL32_BLACK, label.c_str());
-            draw->AddText({p.x + 12, y}, c, label.c_str());
-            y += 15;
+    if (evidence) {
+        for (const auto &segment : frame.segments) {
+            auto a = clip(segment.start), b = clip(segment.end);
+            if (OpenAxisOverlay::clip_segment(a, b))
+                draw->AddLine(pixel(viewport.project(a)), pixel(viewport.project(b)),
+                              color(segment.tone, segment.opacity), float(segment.width));
+        }
+        for (const auto &marker : frame.markers) {
+            auto p = pixel(marker.point);
+            auto c = color(marker.tone, .65);
+            draw->AddLine({p.x - 9, p.y}, {p.x + 9, p.y}, IM_COL32_BLACK, 4);
+            draw->AddLine({p.x, p.y - 9}, {p.x, p.y + 9}, IM_COL32_BLACK, 4);
+            draw->AddLine({p.x - 9, p.y}, {p.x + 9, p.y}, c, 2);
+            draw->AddLine({p.x, p.y - 9}, {p.x, p.y + 9}, c, 2);
+            std::istringstream labels(marker.label);
+            std::string label;
+            float y = p.y - 8;
+            while (std::getline(labels, label)) {
+                draw->AddText({p.x + 13, y + 1}, IM_COL32_BLACK, label.c_str());
+                draw->AddText({p.x + 12, y}, c, label.c_str());
+                y += 15;
+            }
         }
     }
     // Leave room for the 80-logical-pixel viewcube and its surrounding margin.
     const float text_x = lo.x + 120;
     const float line_height = ImGui::GetTextLineHeightWithSpacing();
-    float y = std::max(lo.y + 24, hi.y - 24 - float(frame.lines.size()) * line_height);
-    for (const auto &line : frame.lines) {
+    float y = std::max(lo.y + 24, hi.y - 24 - float(lines.size()) * line_height);
+    for (const auto &line : lines) {
         draw->AddText({text_x + 1, y + 1}, IM_COL32_BLACK, line.text.c_str());
         draw->AddText({text_x, y}, color(line.tone), line.text.c_str());
         y += line_height;

@@ -56,6 +56,9 @@
 #include <string_view>
 
 #include "GUI_App.hpp"
+#ifdef SLIC3R_OPENAXIS
+#include "OpenAxisController.hpp"
+#endif
 #include "UnsavedChangesDialog.hpp"
 #include "MsgDialog.hpp"
 #include "TopBar.hpp"
@@ -1338,12 +1341,6 @@ static const wxString sep_space = "";
 
 static void append_about_menu_item(wxMenu* target_menu, int insert_pos = wxNOT_FOUND)
 {
-#ifdef SLIC3R_OPENAXIS
-    append_menu_item(target_menu, wxID_ANY, "OpenAxis Diagnostics", "Show OpenAxis navigation diagnostics",
-        [](wxCommandEvent&) {
-            if (auto *canvas = wxGetApp().plater()->get_current_canvas3D()) canvas->toggle_openaxis_diagnostics();
-        });
-#endif
     if (wxGetApp().is_editor())
         append_menu_item(target_menu, wxID_ANY, wxString::Format(_L("&About %s"), SLIC3R_APP_NAME), _L("Show about dialog"),
             [](wxCommandEvent&) { Slic3r::GUI::about(); }, nullptr, nullptr, []() {return true; }, nullptr, insert_pos);
@@ -1737,6 +1734,12 @@ void MainFrame::init_menubar_as_editor()
         append_menu_check_item(viewMenu, wxID_ANY, _L("Show Legen&d") + sep + "L", _L("Show legend in preview"),
             [this](wxCommandEvent&) { m_plater->show_legend(!m_plater->is_legend_shown()); }, this,
             [this]() { return m_plater->is_preview_shown(); }, [this]() { return m_plater->is_legend_shown(); }, this);
+#ifdef SLIC3R_OPENAXIS
+        append_menu_check_item(viewMenu, wxID_ANY, _L("OpenAxis &Diagnostics"), _L("Show OpenAxis navigation diagnostics in the viewport"),
+            [](wxCommandEvent&) { if (auto *openaxis = OpenAxisController::instance()) openaxis->toggle_diagnostics(); }, this,
+            []() { return OpenAxisController::instance() != nullptr; },
+            []() { auto *openaxis = OpenAxisController::instance(); return openaxis && openaxis->diagnostics_visible(); }, this);
+#endif
         append_menu_check_item(viewMenu, wxID_ANY, _L("&Collapse Sidebar") + sep + "Shift+" + sep_space + "Tab", _L("Collapse sidebar"),
             [this](wxCommandEvent&) { m_plater->collapse_sidebar(!m_plater->is_sidebar_collapsed()); }, this,
             []() { return true; }, [this]() { return m_plater->is_sidebar_collapsed(); }, this);
@@ -1870,6 +1873,12 @@ void MainFrame::init_menubar_as_gcodeviewer()
         append_menu_check_item(viewMenu, wxID_ANY, _L("Show Legen&d") + sep + "L", _L("Show legend"),
             [this](wxCommandEvent&) { m_plater->show_legend(!m_plater->is_legend_shown()); }, this,
             [this]() { return m_plater->is_preview_shown(); }, [this]() { return m_plater->is_legend_shown(); }, this);
+#ifdef SLIC3R_OPENAXIS
+        append_menu_check_item(viewMenu, wxID_ANY, _L("OpenAxis &Diagnostics"), _L("Show OpenAxis navigation diagnostics in the viewport"),
+            [](wxCommandEvent&) { if (auto *openaxis = OpenAxisController::instance()) openaxis->toggle_diagnostics(); }, this,
+            []() { return OpenAxisController::instance() != nullptr; },
+            []() { auto *openaxis = OpenAxisController::instance(); return openaxis && openaxis->diagnostics_visible(); }, this);
+#endif
     }
 
     // helpmenu

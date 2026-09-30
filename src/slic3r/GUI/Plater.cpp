@@ -89,6 +89,9 @@
 
 #include "GUI.hpp"
 #include "GUI_App.hpp"
+#ifdef SLIC3R_OPENAXIS
+#include "OpenAxisController.hpp"
+#endif
 #include "GUI_ObjectList.hpp"
 #include "GUI_ObjectManipulation.hpp"
 #include "GUI_Utils.hpp"
@@ -340,6 +343,10 @@ struct Plater::priv
 #endif // ENABLE_ENVIRONMENT_MAP
     Mouse3DController mouse3d_controller;
     View3D* view3D;
+#ifdef SLIC3R_OPENAXIS
+    // One integration per application; it follows the current canvas.
+    std::unique_ptr<OpenAxisController> openaxis;
+#endif
     GLToolbar view_toolbar;
     GLToolbar collapse_toolbar;
     Preview *preview;
@@ -755,6 +762,9 @@ void Plater::priv::init()
 
     view3D = new View3D(q, bed, &model, config, &background_process);
     preview = new Preview(q, bed, &model, config, &background_process, &gcode_results, [this]() { schedule_background_process(); });
+#ifdef SLIC3R_OPENAXIS
+    openaxis = std::make_unique<OpenAxisController>(camera);
+#endif
 
     // set default view_toolbar icons size equal to GLGizmosManager::Default_Icons_Size
     view_toolbar.set_icons_size(GLGizmosManager::Default_Icons_Size);
@@ -1210,6 +1220,10 @@ void Plater::priv::init()
 
 Plater::priv::~priv()
 {
+#ifdef SLIC3R_OPENAXIS
+    // Stop networking and clear navigation while the canvases and wx still exist.
+    openaxis.reset();
+#endif
     if (config != nullptr)
         delete config;
     // Saves the database of visited (already shown) hints into hints.ini.
