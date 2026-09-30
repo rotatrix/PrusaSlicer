@@ -1,10 +1,10 @@
 # Rotatrix maintained fork workflow
 
 This checkout is development work on `rotatrix/work/version_3.0.0-alpha11`,
-based on the official upstream tag `version_3.0.0-alpha11`. It is not yet a
-maintained release. The work branch is the temporary GitHub default until the
-first maintained branch is ready. The separate legacy 2.9.6 development branch
-is outside this migration.
+based on the upstream prerelease tag `version_3.0.0-alpha11`. It is exploratory
+and not a maintained line. The primary Rotatrix line is
+`rotatrix/work/version_2.9.6`, based on the upstream release `version_2.9.6`,
+which is also the GitHub default branch.
 
 ## Branch lifecycle
 
