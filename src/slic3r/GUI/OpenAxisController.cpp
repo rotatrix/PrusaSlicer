@@ -286,17 +286,24 @@ bool OpenAxisController::write_camera(const openaxis::Pose &p) {
     auto &c = m_camera;
     auto q = openaxis::Quat::from_rotvec(p.r);
     const Vec3d position = vector(p.t), forward = vector(q.rotate({0, 0, -1}));
-    // Keep the native orbit radius so mouse orbit continues around the camera's own target.
-    const double distance = std::max(1.0, c.get_distance());
-    c.look_at(position, position + distance * forward, vector(q.rotate({0, 1, 0})));
+    // Native orbit requires an on-axis target. Preserve the pivot's camera-space
+    // depth without turning the requested camera toward an off-center pivot.
+    double distance = std::max(1e-6, c.get_distance());
+    if (m_pivot) {
+        const double depth = (vector(*m_pivot) - position).dot(forward);
+        if (std::isfinite(depth) && depth > 1e-6)
+            distance = depth;
+    }
+    double zoom = c.get_zoom() * (c.get_type() == Camera::EType::Perspective ? c.get_distance() / distance : 1.0);
     // The projection is the user's preference, persisted by Camera::set_type; a pose
-    // never switches it. A mismatched pose keeps the zoom and the readback lets the
+    // never switches it. A mismatched pose keeps the projection scale and readback lets the
     // SDK rebase the server onto the native projection.
     const double height = c.get_viewport()[3];
     if (c.get_type() == Camera::EType::Perspective && p.fov > 0)
-        c.set_zoom(height / (2 * distance * std::tan(p.fov / 2)));
+        zoom = height / (2 * distance * std::tan(p.fov / 2));
     else if (c.get_type() == Camera::EType::Ortho && p.ortho_extent > 0)
-        c.set_zoom(height / p.ortho_extent);
+        zoom = height / p.ortho_extent;
+    c.set_external_view(position, position + distance * forward, vector(q.rotate({0, 1, 0})), zoom);
     m_canvas->update_openaxis_projection();
     m_last_view = c.get_view_matrix();
     m_last_zoom = c.get_zoom();

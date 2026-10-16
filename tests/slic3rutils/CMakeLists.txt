@@ -1,14 +1,21 @@
+if(WIN32)
+    set(wxWidgets_USE_UNICODE ON)
+    set(wxWidgets_USE_STATIC ${SLIC3R_STATIC})
+endif()
+find_package(wxWidgets 3.2 MODULE REQUIRED COMPONENTS base core adv html gl webview)
+
 get_filename_component(_TEST_NAME ${CMAKE_CURRENT_LIST_DIR} NAME)
 add_executable(${_TEST_NAME}_tests
     ${_TEST_NAME}_tests_main.cpp
     slic3r_jobs_tests.cpp
+    slic3r_camera_tests.cpp
     slic3r_version_tests.cpp
     slic3r_arrangejob_tests.cpp
     secretstore_tests.cpp
     )
 
 # mold linker for successful linking needs also to link TBB library and link it before libslic3r.
-target_link_libraries(${_TEST_NAME}_tests test_common TBB::tbb TBB::tbbmalloc libslic3r_gui libslic3r libseqarrange)
+target_link_libraries(${_TEST_NAME}_tests test_common wxWidgets::wxWidgets TBB::tbb TBB::tbbmalloc libslic3r_gui libslic3r libseqarrange)
 
 if (MSVC)
     target_link_libraries(${_TEST_NAME}_tests Setupapi.lib)

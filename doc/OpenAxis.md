@@ -25,10 +25,13 @@ scene revision, active bed, size and DPI; switching views, reloading the scene,
 hiding the view, opening a modal dialog or losing application focus cancels
 the active gesture. The plater shuts the integration down before its canvases.
 
-Camera writes keep PrusaSlicer's own orbit distance, so native mouse orbit
-continues around the camera's native target. A write never changes the
-projection, which is the user's persisted preference; it returns the realized
-pose after native zoom and scene-clipping constraints. Native camera changes,
+Camera writes place the native orbit target on the viewing axis at the OpenAxis
+pivot's depth, preserving the requested position and orientation even for an
+off-center pivot. With no usable forward pivot, the previous orbit distance is
+retained. The user's projection type is preserved. External views bypass native
+mouse zoom limits and clip near-eye geometry instead of moving the camera; this
+also applies on subsequent redraws. Native fit-to-bed/object restores the usual
+scene-fitting behavior. Each write returns the realized pose. Native camera changes,
 including 3Dconnexion input, are detected before SDK dispatch and on rendering.
 Cursor coordinates account for Retina framebuffer scaling.
 

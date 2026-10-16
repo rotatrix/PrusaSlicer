@@ -42,6 +42,7 @@ private:
     // Distance between camera position and camera target measured along the camera Z axis
     double m_distance{ DefaultDistance };
     double m_gui_scale{ 1.0 };
+    bool m_auto_adjust_distance{ true };
 
     std::array<int, 4> m_viewport;
     Transform3d m_view_matrix{ Transform3d::Identity() };
@@ -141,6 +142,8 @@ public:
     }
 
     void look_at(const Vec3d& position, const Vec3d& target, const Vec3d& up);
+    // Apply an externally controlled view without zoom limits or clipping-driven camera movement.
+    void set_external_view(const Vec3d& position, const Vec3d& target, const Vec3d& up, double zoom);
 
     double max_zoom() const { return 250.0; }
     double min_zoom() const { return 0.25 * calc_zoom_to_bounding_box_factor(m_scene_box); }
@@ -149,7 +152,7 @@ public:
 
 private:
     // returns tight values for nearZ and farZ plane around the given bounding box
-    // the camera MUST be outside of the bounding box in eye coordinate of the given box
+    // Native views move outside the box; externally controlled views clip it instead.
     std::pair<double, double> calc_tight_frustrum_zs_around(const BoundingBoxf3& box);
     double calc_zoom_to_bounding_box_factor(const BoundingBoxf3& box, double margin_factor = DefaultZoomToBoxMarginFactor) const;
     double calc_zoom_to_volumes_factor(const GLVolumePtrs& volumes, Vec3d& center, double margin_factor = DefaultZoomToVolumesMarginFactor) const;
