@@ -98,6 +98,7 @@ bool Bed3D::set_shape(const Pointfs& bed_shape, const double max_print_height, c
 
     // unregister from picking
     wxGetApp().plater()->canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
+    wxGetApp().plater()->preview_canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
 
     init_internal_model_from_file();
     init_triangles();
@@ -546,6 +547,7 @@ void Bed3D::init_internal_model_from_file()
             // changed while the camera was pointing upward.
             // In this case we need to remove it before creating a new using the model geometry
             wxGetApp().plater()->canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
+            wxGetApp().plater()->preview_canvas3D()->remove_raycasters_for_picking(SceneRaycaster::EType::Bed);
             m_model.mesh_raycaster.reset();
         }
         register_raycasters_for_picking(m_model.model.get_geometry(), Geometry::translation_transform(m_model_offset));
@@ -683,6 +685,7 @@ void Bed3D::register_raycasters_for_picking(const GLModel::Geometry& geometry, c
 
     m_model.mesh_raycaster = std::make_unique<MeshRaycaster>(std::make_shared<const TriangleMesh>(std::move(its)));
     wxGetApp().plater()->canvas3D()->add_raycaster_for_picking(SceneRaycaster::EType::Bed, 0, *m_model.mesh_raycaster, trafo);
+    wxGetApp().plater()->preview_canvas3D()->add_raycaster_for_picking(SceneRaycaster::EType::Bed, 0, *m_model.mesh_raycaster, trafo);
 }
 
 } // GUI

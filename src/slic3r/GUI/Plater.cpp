@@ -7272,6 +7272,11 @@ GLCanvas3D* Plater::canvas3D()
     return p->view3D->get_canvas3d();
 }
 
+GLCanvas3D* Plater::preview_canvas3D()
+{
+    return p->preview->get_canvas3d();
+}
+
 const GLCanvas3D* Plater::canvas3D() const
 {
     return p->view3D->get_canvas3d();
