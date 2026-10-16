@@ -10,16 +10,23 @@ $dist = if ($env:DIST_DIR) { $env:DIST_DIR } else { "$repo/dist" }
 if ($Stage -in @('deps', 'all')) {
     cmake -S deps -B $depsBuild -G 'Visual Studio 17 2022' -A x64 `
         -DCMAKE_BUILD_TYPE=Release -DDEP_DEBUG=OFF -DDEP_MAX_THREADS=2 `
-        -DPrusaSlicer_deps_PACKAGE_EXCLUDES=OCCT
+        -DPrusaSlicer_deps_PACKAGE_EXCLUDES=
     cmake --build $depsBuild --config Release --parallel 2
 }
 if ($Stage -in @('build', 'all')) {
+    # Upstream detects mesh repair from the Windows SDK environment, not a CMake option.
+    $sdkRoot = "${env:ProgramFiles(x86)}/Windows Kits/10"
+    $sdk = Get-ChildItem "$sdkRoot/Include" -Directory |
+        Where-Object { Test-Path "$($_.FullName)/winrt/windows.graphics.printing3d.h" } |
+        Sort-Object { [version]$_.Name } -Descending | Select-Object -First 1
+    if (!$sdk) { throw 'Windows SDK Printing3D headers are required for upstream mesh repair.' }
+    $env:WindowsSdkDir = $sdkRoot
+    $env:WindowsSDKVersion = $sdk.Name
     cmake -S . -B $appBuild -G 'Visual Studio 17 2022' -A x64 `
         -DCMAKE_CONFIGURATION_TYPES=Release `
         "-DCMAKE_PREFIX_PATH=$depsBuild/destdir/usr/local" `
         -DCMAKE_BUILD_TYPE=Release -DSLIC3R_STATIC=ON -DSLIC3R_OPENAXIS=ON `
-        -DOPENAXIS_SOURCE_DIR= -DSLIC3R_ENABLE_FORMAT_STEP=OFF `
-        -DSLIC3R_ENABLE_WIN10_MESH_REPAIR=OFF -DSLIC3R_PCH=ON `
+        -DOPENAXIS_SOURCE_DIR= -DSLIC3R_ENABLE_FORMAT_STEP=ON -DSLIC3R_PCH=ON `
         -DSLIC3R_BUILD_TESTS=OFF -DSLIC3R_RELEASE_DEBUG_SYMBOLS=OFF
     cmake --build $appBuild --config Release --parallel 2
     cmake -S tests/openaxis -B "$appBuild/openaxis-checks" -G 'Visual Studio 17 2022' -A x64
@@ -33,7 +40,7 @@ if ($Stage -in @('package', 'all')) {
     if (Test-Path -LiteralPath $package) { throw "Use a fresh package directory: $package" }
     New-Item -ItemType Directory -Path $package -Force | Out-Null
     $binaries = "$appBuild/src/Release"
-    foreach ($binary in @('prusa-slicer.exe', 'prusa-slicer-console.exe', 'PrusaSlicer.dll')) {
+    foreach ($binary in @('prusa-slicer.exe', 'prusa-slicer-console.exe', 'PrusaSlicer.dll', 'OCCTWrapper.dll')) {
         Copy-Item -LiteralPath "$binaries/$binary" -Destination $package
     }
     foreach ($dll in @('libgmp-10.dll', 'libmpfr-4.dll', 'WebView2Loader.dll')) {
@@ -58,7 +65,7 @@ if ($Stage -in @('package', 'all')) {
     $sdkRevision = (git -C "$appBuild/_deps/openaxis-src" rev-parse HEAD).Trim()
     @"
 PrusaSlicer - Rotatrix preview build (Windows x64)
-Unofficial build; no STEP import or Windows mesh repair. Unsigned.
+Unofficial build with upstream features, including STEP import and Windows mesh repair. Unsigned.
 Source: https://github.com/rotatrix/PrusaSlicer/tree/$((git rev-parse HEAD).Trim())
 OpenAxis: https://github.com/rotatrix/openaxis/tree/$sdkRevision
 
@@ -71,7 +78,13 @@ OpenAxis requires Rotatrix 1.6.0 or newer. Device/GUI testing is still required.
 "@ | Set-Content -LiteralPath "$package/README.txt" -Encoding utf8
     # Run from the staged folder to catch missing copied runtime files.
     Push-Location $package
-    try { & './prusa-slicer-console.exe' --datadir "$appBuild/smoke-datadir" --help } finally { Pop-Location }
+    try {
+        & './prusa-slicer-console.exe' --datadir "$appBuild/smoke-datadir" --help
+        $step = "$depsBuild/dep_OCCT-prefix/src/dep_OCCT/data/step/screw.step"
+        $stl = "$appBuild/smoke-step.stl"
+        & './prusa-slicer-console.exe' --datadir "$appBuild/smoke-datadir" --export-stl --output $stl $step
+        if (!(Test-Path $stl) -or (Get-Item $stl).Length -eq 0) { throw 'STEP import smoke test produced no mesh.' }
+    } finally { Pop-Location }
     Compress-Archive -LiteralPath $package -DestinationPath "$dist/$packageName.zip"
     $hash = (Get-FileHash -LiteralPath "$dist/$packageName.zip" -Algorithm SHA256).Hash.ToLowerInvariant()
     "$hash  $packageName.zip" | Set-Content -LiteralPath "$dist/$packageName.zip.sha256" -Encoding ascii

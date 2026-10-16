@@ -32,7 +32,6 @@ export PATH="$temporary/bin:$PATH"
 cd "$temporary/assets"
 packages=(
     "PrusaSlicer-Rotatrix-windows-x64-${GITHUB_SHA:0:12}.zip"
-    "PrusaSlicer-Rotatrix-macos-arm64-${GITHUB_SHA:0:8}.zip"
     "PrusaSlicer-Rotatrix-ubuntu-24.04-x64-${GITHUB_SHA:0:12}.tar.gz"
 )
 for package in "${packages[@]}"; do

@@ -8,7 +8,6 @@ cd "${1:?Artifact directory is required}"
 
 packages=(
   "PrusaSlicer-Rotatrix-windows-x64-${GITHUB_SHA:0:12}.zip"
-  "PrusaSlicer-Rotatrix-macos-arm64-${GITHUB_SHA:0:8}.zip"
   "PrusaSlicer-Rotatrix-ubuntu-24.04-x64-${GITHUB_SHA:0:12}.tar.gz"
 )
 assets=()
@@ -38,8 +37,10 @@ PrusaSlicer 2.9.6 OpenAxis preview built from commit $GITHUB_SHA.
 All three platforms passed build, OpenAxis tests and package smoke checks in the same Actions run:
 ${GITHUB_SERVER_URL:-https://github.com}/$GH_REPO/actions/runs/${GITHUB_RUN_ID:?Run ID is required}
 
-Packages: Windows x64, macOS ARM64 and Ubuntu 24.04 x64, with SHA256 checksums.
-These previews have STEP support disabled. Windows is unsigned; macOS is ad-hoc signed and not notarized. See each package's README for runtime requirements.
+Packages include upstream features, including STEP import and Windows mesh repair.
+Windows is unsigned. Linux requires Ubuntu 24.04 system libraries.
+macOS ARM64 and Intel apps are signed and notarized by rotatrix/release-signing
+after this source workflow succeeds, then attached to this release separately.
 
 GUI and Rotatrix hardware testing remain required before publication.
 EOF

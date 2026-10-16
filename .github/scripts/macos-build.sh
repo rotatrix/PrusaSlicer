@@ -7,12 +7,13 @@ DEPS_BUILD_DIR="${DEPS_BUILD_DIR:-$ROOT/deps/build-ci}"
 BUILD_DIR="${BUILD_DIR:-$ROOT/build-ci}"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
+ARCH="${ARCH:-$(uname -m)}"
 JOBS="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
 if (( JOBS > 2 )); then JOBS=2; fi
 PREFIX="$DEPS_BUILD_DIR/destdir/usr/local"
 cd "$ROOT"
-[[ "$(uname -s)" == Darwin && "$(uname -m)" == arm64 ]] || {
-    echo 'This script requires a native macOS ARM64 runner.' >&2; exit 1;
+[[ "$(uname -s)" == Darwin && "$(uname -m)" == "$ARCH" ]] || {
+    echo 'This script requires a native macOS runner for the requested architecture.' >&2; exit 1;
 }
 
 prerequisites() {
@@ -25,9 +26,9 @@ export PATH="$(brew --prefix)/opt/gettext/bin:$(brew --prefix)/opt/texinfo/bin:$
 deps() {
     cmake -S deps -B "$DEPS_BUILD_DIR" -G 'Unix Makefiles' \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-        -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_OSX_ARCHITECTURES="$ARCH" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
-        -DPrusaSlicer_deps_PACKAGE_EXCLUDES=OCCT -DDEP_MAX_THREADS=2
+        -DPrusaSlicer_deps_PACKAGE_EXCLUDES= -DDEP_MAX_THREADS=2
     # Each dependency already builds in parallel; avoid simultaneous heavy builds.
     cmake --build "$DEPS_BUILD_DIR" --parallel 1
 }
@@ -35,15 +36,15 @@ deps() {
 build() {
     cmake -S . -B "$BUILD_DIR" -G 'Unix Makefiles' \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-        -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_OSX_ARCHITECTURES="$ARCH" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
         -DCMAKE_PREFIX_PATH="$PREFIX" -DSLIC3R_STATIC=ON -DSLIC3R_GTK=3 -DSLIC3R_PCH=ON \
-        -DSLIC3R_OPENAXIS=ON -DSLIC3R_ENABLE_FORMAT_STEP=OFF \
+        -DSLIC3R_OPENAXIS=ON -DSLIC3R_ENABLE_FORMAT_STEP=ON \
         -DSLIC3R_BUILD_TESTS=OFF -DSLIC3R_RELEASE_DEBUG_SYMBOLS=OFF \
         -DCMAKE_EXE_LINKER_FLAGS=-Wl,-headerpad_max_install_names
     cmake --build "$BUILD_DIR" --target PrusaSlicer --parallel "$JOBS"
     cmake -S tests/openaxis -B "$BUILD_DIR/openaxis-checks" \
-        -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES=arm64 \
+        -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_ARCHITECTURES="$ARCH" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET"
     cmake --build "$BUILD_DIR/openaxis-checks" --parallel "$JOBS"
     ctest --test-dir "$BUILD_DIR/openaxis-checks" --output-on-failure
@@ -54,7 +55,7 @@ package() {
     # A fresh staging folder makes repeated packaging safe without deleting user files.
     local staging app executable revision archive
     staging="$(mktemp -d "$DIST_DIR/macos-stage.XXXXXX")"
-    app="$staging/PrusaSlicer-Rotatrix.app"
+    app="$staging/PrusaSlicer.app"
     mkdir -p "$app/Contents/MacOS"
     # src/CMakeLists.txt configures this file in its binary directory.
     test -f "$BUILD_DIR/src/Info.plist"
@@ -68,20 +69,19 @@ package() {
         test -d "$app/Contents/MacOS/../Resources/$resource"
     done
     cp "$ROOT/resources/icons/PrusaSlicer.icns" "$app/Contents/Resources/PrusaSlicer.icns"
-    cp "$ROOT/LICENSE" "$staging/LICENSE"
+    cp "$ROOT/LICENSE" "$app/Contents/Resources/LICENSE"
     local source notice relative
     for source in "$DEPS_BUILD_DIR" "$BUILD_DIR/_deps" "$ROOT/bundled_deps"; do
         [[ -d "$source" ]] || continue
         while IFS= read -r -d '' notice; do
             relative="${notice#"$ROOT/"}"
-            mkdir -p "$staging/third-party-notices/$(dirname "$relative")"
-            cp "$notice" "$staging/third-party-notices/$relative"
+            mkdir -p "$app/Contents/Resources/third-party-notices/$(dirname "$relative")"
+            cp "$notice" "$app/Contents/Resources/third-party-notices/$relative"
         done < <(find "$source" -type f \( -iname 'LICENSE*' -o -iname 'COPYING*' -o -iname 'NOTICE*' \) -print0)
     done
     revision="$(git rev-parse HEAD)"
-    printf 'Unofficial Rotatrix preview, macOS ARM64, no STEP support.\nSource revision: %s\nSource: https://github.com/%s/tree/%s\nAd-hoc signed for testing; not Apple-notarized.\n' \
-        "$revision" "${GITHUB_REPOSITORY:-rotatrix/PrusaSlicer}" "$revision" > "$staging/README.txt"
-    /usr/libexec/PlistBuddy -c 'Set :CFBundleIdentifier com.rotatrix.prusaslicer.preview' "$app/Contents/Info.plist"
+    printf 'Unofficial Rotatrix build with upstream features.\nSource revision: %s\nSource: https://github.com/%s/tree/%s\n' \
+        "$revision" "${GITHUB_REPOSITORY:-rotatrix/PrusaSlicer}" "$revision" > "$app/Contents/Resources/SOURCE.txt"
     plutil -lint "$app/Contents/Info.plist"
     cmake "-DAPP=$app" "-DLIB_DIR=$PREFIX/lib" -P "$ROOT/.github/scripts/macos-bundle.cmake"
     # install_name_tool invalidates existing signatures; sign inner Mach-O files first.
@@ -94,8 +94,16 @@ package() {
     codesign --verify --deep --strict "$app"
     mkdir -p "$BUILD_DIR/smoke-datadir"
     "$app/Contents/MacOS/$executable" --datadir "$BUILD_DIR/smoke-datadir" --help
-    archive="$DIST_DIR/PrusaSlicer-Rotatrix-macos-arm64-${revision:0:8}.zip"
-    ditto -c -k --sequesterRsrc "$staging" "$archive"
+    archive="$DIST_DIR/macos-app-$ARCH-$revision.tar.gz"
+    COPYFILE_DISABLE=1 tar -czf "$archive" -C "$staging" PrusaSlicer.app
+    local extracted
+    extracted="$(mktemp -d "$DIST_DIR/macos-smoke.XXXXXX")"
+    tar -xzf "$archive" -C "$extracted"
+    codesign --verify --deep --strict "$extracted/PrusaSlicer.app"
+    "$extracted/PrusaSlicer.app/Contents/MacOS/$executable" --datadir "$BUILD_DIR/smoke-datadir" --help
+    "$extracted/PrusaSlicer.app/Contents/MacOS/$executable" --datadir "$BUILD_DIR/smoke-datadir" \
+        --export-stl --output "$BUILD_DIR/smoke-step.stl" "$DEPS_BUILD_DIR/dep_OCCT-prefix/src/dep_OCCT/data/step/screw.step"
+    test -s "$BUILD_DIR/smoke-step.stl"
     (cd "$DIST_DIR" && shasum -a 256 "$(basename "$archive")" > "$(basename "$archive").sha256")
     echo "Packaged $archive"
 }

@@ -14,7 +14,7 @@ STAGE="$DIST_DIR/$NAME"
 deps() {
     cmake -S "$ROOT/deps" -B "$DEPS_BUILD_DIR" -G Ninja \
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
-        -DPrusaSlicer_deps_PACKAGE_EXCLUDES=OCCT -DDEP_MAX_THREADS="$JOBS" -DDEP_WX_GTK3=ON
+        -DPrusaSlicer_deps_PACKAGE_EXCLUDES= -DDEP_MAX_THREADS="$JOBS" -DDEP_WX_GTK3=ON
     cmake --build "$DEPS_BUILD_DIR" --parallel 1
 }
 
@@ -23,9 +23,9 @@ build() {
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH="$PREFIX" \
         -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DSLIC3R_STATIC=ON -DSLIC3R_GTK=3 -DSLIC3R_PCH=ON \
         -DSLIC3R_FHS=OFF -DSLIC3R_OPENAXIS=ON \
-        -DSLIC3R_ENABLE_FORMAT_STEP=OFF -DSLIC3R_BUILD_TESTS=OFF \
+        -DSLIC3R_ENABLE_FORMAT_STEP=ON -DSLIC3R_BUILD_TESTS=OFF \
         -DSLIC3R_RELEASE_DEBUG_SYMBOLS=OFF
-    cmake --build "$BUILD_DIR" --target PrusaSlicer --parallel "$JOBS"
+    cmake --build "$BUILD_DIR" --target PrusaSlicer OCCTWrapper --parallel "$JOBS"
     cmake -S "$ROOT/tests/openaxis" -B "$BUILD_DIR/openaxis-tests" -G Ninja -DCMAKE_BUILD_TYPE=Release
     cmake --build "$BUILD_DIR/openaxis-tests" --parallel "$JOBS"
     ctest --test-dir "$BUILD_DIR/openaxis-tests" --output-on-failure
@@ -44,13 +44,14 @@ copy_notices() {
 package() {
     mkdir -p "$STAGE/bin" "$STAGE/lib" "$STAGE/third-party-notices"
     cp "$BUILD_DIR/src/prusa-slicer" "$STAGE/bin/prusa-slicer"
+    cp "$BUILD_DIR/src/OCCTWrapper.so" "$STAGE/bin/OCCTWrapper.so"
     cp -a "$ROOT/resources" "$STAGE/"
     cp "$ROOT/LICENSE" "$STAGE/"
     git -C "$ROOT" rev-parse HEAD > "$STAGE/SOURCE-REVISION.txt"
     git -C "$ROOT" remote get-url origin >> "$STAGE/SOURCE-REVISION.txt"
     # Keep system libraries on the host; record their complete transitive ldd
     # closure and package owners so the same Ubuntu release can install them.
-    ldd "$STAGE/bin/prusa-slicer" > "$STAGE/runtime-libraries.txt"
+    ldd "$STAGE/bin/prusa-slicer" "$STAGE/bin/OCCTWrapper.so" > "$STAGE/runtime-libraries.txt"
     if grep -q 'not found' "$STAGE/runtime-libraries.txt"; then
         cat "$STAGE/runtime-libraries.txt"
         return 1
@@ -83,7 +84,7 @@ LAUNCHER
     chmod +x "$STAGE/prusa-slicer" "$STAGE/bin/prusa-slicer"
     cat > "$STAGE/README.txt" <<'README'
 Unofficial PrusaSlicer / Rotatrix OpenAxis preview for Ubuntu 24.04 x86_64.
-STEP import is disabled. This is not a portable package for other distributions.
+Includes upstream features and STEP import. Requires Ubuntu 24.04 system libraries.
 Extract the complete archive, then run ./prusa-slicer.
 Install required system runtime libraries on Ubuntu 24.04 with:
   sudo apt-get update
@@ -104,6 +105,9 @@ smoke() {
     test -d "$STAGE/resources/presets"
     test ! -L "$STAGE/resources"
     (cd "$temporary" && "$STAGE/prusa-slicer" --datadir "$temporary/config" --help)
+    (cd "$temporary" && "$STAGE/prusa-slicer" --datadir "$temporary/config" \
+        --export-stl --output "$temporary/step.stl" "$DEPS_BUILD_DIR/dep_OCCT-prefix/src/dep_OCCT/data/step/screw.step")
+    test -s "$temporary/step.stl"
     (cd "$temporary" && "$STAGE/prusa-slicer" --datadir "$temporary/config" \
         --export-gcode --output "$temporary/cube.gcode" "$ROOT/tests/data/20mm_cube.obj")
     test -s "$temporary/cube.gcode"

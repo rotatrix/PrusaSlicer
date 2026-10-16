@@ -38,7 +38,7 @@ manual dispatch provide the current test builds.
 
 Normal CI runs on pushes to `rotatrix/**` and PRs targeting `rotatrix/*` (a
 single path segment, excluding `rotatrix/work/*`). It builds Windows x64,
-macOS ARM64 and Linux x64, runs the OpenAxis tests and package smoke checks,
+macOS ARM64/Intel and Linux x64, runs the OpenAxis tests and package smoke checks,
 and uploads packages/checksums/logs with source SHAs and 14-day retention.
 Routine testing creates no release tags or draft releases.
 
@@ -48,7 +48,9 @@ which is unavailable to this fork's current credentials (GitHub returns 404).
 Keep those upstream wrappers for reference and upstream use, but exclude
 Rotatrix branches/tags to avoid duplicate unavailable builds. The existing
 working desktop pipeline remains the fallback, reusing upstream CMake and deps.
-The upstream-only scheduled static analysis job is disabled for this fork.
+The upstream-only static analysis schedule is removed for this fork. An owner
+guard alone did not prevent GitHub from validating its inaccessible reusable
+workflow and reporting daily failures.
 
 See [OpenAxis CI](OpenAxis-CI.md) for local reproduction, platform limitations,
 artifact downloads and manual hardware checks.
@@ -71,17 +73,20 @@ are left untouched; the routine draft-creation workflow has been removed.
 
 ## Before enabling final releases
 
-Final tags currently fail validation with an explicit explanation. Preview
-packages disable STEP support and Windows mesh repair, Windows is unsigned,
-macOS is ad-hoc signed without notarization, and Linux requires Ubuntu 24.04
-system libraries. These are usable test builds, not upstream-equivalent releases.
+Final tags currently fail validation pending native acceptance and release
+onboarding. Builds enable upstream features, including STEP and Windows mesh
+repair. Branch/PR macOS apps are ad-hoc signed; tagged apps are handed to the
+central signer after the complete source workflow succeeds. Windows is unsigned
+and Linux requires Ubuntu 24.04 system libraries.
 
 Before removing that gate:
 
 1. Adapt accessible upstream packaging or restore comparable full-featured
    distributions, including the supported platform/architecture coverage.
-2. Configure Rotatrix-owned signing credentials and macOS notarization, and
-   verify signatures on the packaged distributions.
+2. Configure the source signing-dispatch token/environment and verify that the
+   central signer's publication token covers PrusaSlicer. Apple credentials
+   remain in `rotatrix/release-signing`; do not create per-app Apple credentials.
+   Verify a real signed/notarized tag build and review Windows signing.
 3. Verify GUI, slicing and hardware behavior on clean target machines.
 4. Require final-tag commits to belong to the matching maintained branch, then
    enable final publication (without `--prerelease`) using verified packages.
