@@ -682,7 +682,7 @@ public:
     void update_openaxis_projection();
     // Preview draws G-code instead of the plater's main toolbar and objects.
     bool openaxis_is_preview() const { return !m_main_toolbar.is_enabled(); }
-    BoundingBoxf3 openaxis_gcode_bounds() const { return m_gcode_viewer.get_paths_bounding_box(); }
+    BoundingBoxf3 openaxis_gcode_bounds() const;
     // World-space toolpath surface at a physical viewport pixel, from rendered depth.
     std::optional<Vec3d> openaxis_gcode_hit(const Vec2d& pixel);
 #endif

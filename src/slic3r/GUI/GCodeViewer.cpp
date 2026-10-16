@@ -1270,6 +1270,19 @@ void GCodeViewer::reset()
     m_legend_resizer.reset();
 }
 
+#ifdef SLIC3R_OPENAXIS
+void GCodeViewer::render_openaxis_geometry()
+{
+    const Camera& camera = wxGetApp().plater()->get_camera();
+    Transform3d view = camera.get_view_matrix();
+    view.translate(s_multiple_beds.get_bed_translation(s_multiple_beds.get_active_bed()));
+    // libvgcode's optional tool/COG markers do not write depth. The separate
+    // PrusaSlicer sequential marker and ImGui UI are not part of this call.
+    m_viewer.render(libvgcode::convert(Matrix4f(view.matrix().cast<float>())),
+        libvgcode::convert(Matrix4f(camera.get_projection_matrix().matrix().cast<float>())));
+}
+#endif
+
 void GCodeViewer::render()
 {
     glsafe(::glEnable(GL_DEPTH_TEST));

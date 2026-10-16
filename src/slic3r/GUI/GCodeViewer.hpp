@@ -287,6 +287,10 @@ public:
 
     void reset();
     void render();
+#ifdef SLIC3R_OPENAXIS
+    // Query-only geometry pass: no ImGui, sequential tool marker or legend.
+    void render_openaxis_geometry();
+#endif
 #if VGCODE_ENABLE_COG_AND_TOOL_MARKERS
     void render_cog() {
         if (!m_loaded_as_preview && m_viewer.get_layers_count() > 0)

@@ -36,7 +36,11 @@ Surface picks use native mesh raycasters with the active gizmo's clipping plane,
 exactly like hover picking, without changing hover/selection state or including
 gizmo handles. Hits report the picked part's bounds. Beds participate only in
 ordinary picks, never selection picks. In preview, toolpaths are picked from
-their rendered depth at the sample pixel and model bounds include the G-code
+their rendered depth in an isolated framebuffer at the sample pixel. The query
+uses geometry-only rendering without invoking the legend or other ImGui UI;
+the library's optional tool/center-of-gravity markers do not write depth.
+If a depth framebuffer is unavailable, the pick falls back to ordinary
+mesh/bed candidates. Model bounds include the G-code
 paths; preview has no selection facts.
 
 Use **View > OpenAxis Diagnostics** to show connection status, query evidence
