@@ -1,9 +1,43 @@
 # OpenAxis integration assessment (PrusaSlicer 2.9.6)
 
-Status: **scope decisions approved; implementation not started.** This assessment
+Status: **approved scope implemented; native acceptance and cross-platform builds pending.** This assessment
 reviews the existing 2.9.6 backport against the OpenAxis documentation and
 PrusaSlicer 2.9.6's native `GLCanvas3D`/`Camera` APIs. It records the approved
-scope and the changes the current code needs to meet it.
+scope and the original implementation plan. The coverage tables below retain the
+pre-implementation findings and source references; use the current review here
+for completion status rather than treating their old "Change required" entries
+as outstanding work.
+
+## Current review (2026-10-16)
+
+Commit `ece8dec328` implemented the seven items in the original implementation
+summary. The October follow-up confines the picking correction to the existing
+OpenAxis path and a geometry-only GCodeViewer entry point, without changing
+libvgcode's API.
+
+| Coverage | Implementation | Verification still required |
+| --- | --- | --- |
+| 3D view, preview, standalone viewer; camera navigation during gizmos | One plater-owned controller follows the current canvas | Device checks in every editor and representative gizmos |
+| Camera facts, projection, native input | Native projection preserved; realized pose returned; native changes polled | Perspective/ortho, mouse and 3Dconnexion interleaving, projection switch, zoom constraints |
+| Bounds and mesh picks | Model/selection facts and selection-filtered picks; beds excluded from selection; gizmo clipping | Multiple beds, parts, selection behind other objects, clipped views |
+| Preview picks | Isolated depth framebuffer, geometry-only rendering without legend/UI or tool markers; pixel-center unprojection | Visible/hidden layers, misses, projections, drivers and latency |
+| Pivot and diagnostics | Depth-tested lime disc, viewport evidence/status, shared nonpersistent View toggle, expiry refresh | Occlusion, DPI, labels, diagnostics on/off equivalence and cleanup |
+| Scheduling, context and lifecycle | Deferred wx scheduler; scene/view/bed/size context; modal/focus cancellation; versioned SDK log closed on shutdown | Reconnect, view replacement, close during gesture/retry, session log evidence |
+| Deliberate exclusions | Object manipulation deferred; free camera and 2D excluded as approved | No expansion of approved scope |
+| Builds and distribution | STEP/OCCT restored; Windows repair SDK detection required; Linux HID dependency; upstream macOS identity and app-only archive; central signing relay | Native macOS/Linux CI, signed tag onboarding, clean-machine/device acceptance |
+
+The automated adapter test covers overlay clipping and viewport/DPI mapping only.
+Build and CLI smoke tests do not establish native picking, lifecycle, graphics or
+physical-device behavior. Wayland cursor position remains unverified. Promotion
+to a maintained branch or final release awaits the native acceptance checks.
+
+Local verification on 2026-10-16: Windows x64 Release built successfully with
+OCCT 7.6.1 and `HAS_WIN10SDK` enabled. CLI help, conversion of OCCT's `screw.step`
+to STL (569,884 bytes), and slicing `20mm_cube.obj` to G-code passed. The standalone
+overlay test and release publication safeguards passed. The GUI opened with a
+test cube and remained responsive; the SDK log confirmed connection to the local
+Rotatrix server. This is startup evidence, not physical-device acceptance.
+macOS ARM64/Intel and Linux verification is delegated to the next CI run.
 
 ## Baselines
 
@@ -52,7 +86,7 @@ are relative to this repository; `GUI/` means `src/slic3r/GUI/`.
 | `camera.pose` read | Req: correct axes, projection, aspect (`concepts/coordinates.md` "Camera axes", "Projection describes the rendered view") | `Camera::get_dir_right/up/forward`, `get_position`, `get_projection_matrix`. The perspective frustum is sized at orbit distance: half-height `0.5·vp_h/zoom` at `m_distance` (`GUI/Camera.cpp:204-244`) | **Included** (`GUI/OpenAxisController.cpp:197-213`). `fov = 2·atan(1/P11)` and `ortho_extent = 2/P11` are correct for this projection | The frustum near/far planes are fitted to the scene box on every render (`calc_tight_frustrum_zs_around`) | Diagnostics: compare the reported fov and extent with the rendered view in tall and wide windows |
 | Pose write | Req: return the actual pose; separate failure from unknown readback (`reference/navigation-hosts.mdx` "Writes and observations") | `look_at` sets target and `m_distance`; `set_zoom` clamps to scene-relative min/max (`GUI/Camera.cpp:81-90`) | **Change required.** The write currently places the native target at the **Rotatrix pivot distance** (`OpenAxisController.cpp:230-231`), which moves the orbit centre native mouse input uses. Proposed: keep the native `get_distance()` so mouse orbit is unchanged | Zoom clamps surface as "differs" corrections, which is intended | Zoom to each limit; after a gesture, a mouse orbit must rotate about the same target as before it |
 | Projection | Approved: never switch. `Camera::set_type` also **persists** `use_perspective_camera` to app config (`GUI/Camera.cpp:40-46`) | `Camera::get_type` | **Change required.** Today the write calls `set_type(...)` from the server pose (`OpenAxisController.cpp:225`). Proposed: never call `set_type`; apply position and orientation, derive zoom from the pose field matching the native projection, and return the realized pose so the SDK rebases any mismatch (`concepts/reconciliation.md` "Projection changes") | If the server keeps sending the other projection after a rebase, the pose will show "differs" repeatedly. **Validate** that the server adopts the reported projection | Toggle projection natively (K) mid-gesture; Rotatrix never changes the preference |
-| Native camera bookkeeping | Fork: mouse orbit unchanged | `Camera::rotate_on_sphere` clamps mouse tilt to �90� using stored `m_zenit` (`GUI/Camera.cpp:354-366`). `look_at` recomputes it from the actual view via `update_zenit()` (`GUI/Camera.cpp:578`, `:603`). Constrained mouse rotation calls `recover_from_free_camera()` (`GUI/GLCanvas3D.cpp:4123`), which removes roll | **Included**; no change needed. Rotatrix writes go through `look_at`, so native tilt limits follow the real view | Removing roll is native behaviour (upstream GH #3816, shared with 3Dconnexion). The first constrained mouse drag after a rolled Rotatrix view levels the camera; this is left unchanged | Tilt with Rotatrix, then mouse-drag to the top view; the limit must stop at straight down |
+| Native camera bookkeeping | Fork: mouse orbit unchanged | `Camera::rotate_on_sphere` clamps mouse tilt to ±90° using stored `m_zenit` (`GUI/Camera.cpp:354-366`). `look_at` recomputes it from the actual view via `update_zenit()` (`GUI/Camera.cpp:578`, `:603`). Constrained mouse rotation calls `recover_from_free_camera()` (`GUI/GLCanvas3D.cpp:4123`), which removes roll | **Included**; no change needed. Rotatrix writes go through `look_at`, so native tilt limits follow the real view | Removing roll is native behaviour (upstream GH #3816, shared with 3Dconnexion). The first constrained mouse drag after a rolled Rotatrix view levels the camera; this is left unchanged | Tilt with Rotatrix, then mouse-drag to the top view; the limit must stop at straight down |
 | `world.orientation` | Req (`concepts/coordinates.md`) | Bed frame, +Z up, right-handed; `Camera::select_view("front")` | **Included** (`OpenAxisController.cpp:248`) | Verify that "forward +Y" matches the Front view semantics | Rotatrix front view against View > Front |
 | `viewport.aspect`, `viewport.cursor` | Req: normalized cursor, unavailable outside, not clamped (`concepts/coordinates.md` "Screen coordinates") | `get_canvas_size()`; `ScreenToClient(wxGetMousePosition())` with Retina scale (`GUI/GLCanvas3D.cpp:1372-1388`); ImGui `WantCaptureMouse` | **Included** (`OpenAxisController.cpp:250-253`) | **Open:** `wxGetMousePosition` is unreliable on Wayland; consider using the canvas's last mouse-motion position (`m_mouse.position`) | Cursor at the corners, over ImGui panels, outside; Windows, macOS Retina, Linux X11 and Wayland |
 | `camera.view_target`, `document.id` | Optional | `Camera::get_target`; `Model::id()` | **Included** | `document.id` has no meaning in G-code viewer mode; report unavailable there | Diagnostics rows |
