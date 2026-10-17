@@ -102,7 +102,7 @@ smoke() {
     local temporary
     temporary=$(mktemp -d)
     # Run from outside the checkout, with isolated user config, against staged files.
-    test -d "$STAGE/resources/presets"
+    test -d "$STAGE/resources/profiles" || { echo "Missing packaged resources/profiles" >&2; return 1; }
     test ! -L "$STAGE/resources"
     (cd "$temporary" && "$STAGE/prusa-slicer" --datadir "$temporary/config" --help)
     (cd "$temporary" && "$STAGE/prusa-slicer" --datadir "$temporary/config" \
