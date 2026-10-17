@@ -1,0 +1,13 @@
+diff --git a/cpp/src/verify.cpp b/cpp/src/verify.cpp
+--- a/cpp/src/verify.cpp
++++ b/cpp/src/verify.cpp
+@@ -113,7 +113,8 @@ static void sig(const Bytes &key, const Bytes &data, const Bytes &signature) {
+     int len = i2d_ECDSA_SIG(s, &der);
+     EVP_MD_CTX *ctx = EVP_MD_CTX_new();
+     bool ok = ctx && EVP_DigestVerifyInit(ctx, nullptr, EVP_sha256(), nullptr, k) == 1 &&
+-              EVP_DigestVerify(ctx, der, len, data.data(), data.size()) == 1;
++              EVP_DigestVerifyUpdate(ctx, data.data(), data.size()) == 1 &&
++              EVP_DigestVerifyFinal(ctx, der, len) == 1;
+     EVP_MD_CTX_free(ctx);
+     OPENSSL_free(der);
+     ECDSA_SIG_free(s);

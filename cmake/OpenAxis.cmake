@@ -17,9 +17,13 @@ if(SLIC3R_OPENAXIS)
         add_subdirectory("${OPENAXIS_SOURCE_DIR}/cpp" "${PROJECT_BINARY_DIR}/openaxis")
     else()
         include(FetchContent)
+        find_package(Git REQUIRED)
         FetchContent_Declare(openaxis
             GIT_REPOSITORY https://github.com/rotatrix/openaxis.git
             GIT_TAG cpp/v1.0.0-rc.1
+            # rc.1 uses a verification API unavailable in upstream's OpenSSL 1.1.0.
+            PATCH_COMMAND "${GIT_EXECUTABLE}" apply --ignore-space-change
+                "${CMAKE_CURRENT_LIST_DIR}/openaxis-openssl-compat.patch"
             SOURCE_SUBDIR cpp
         )
         FetchContent_MakeAvailable(openaxis)

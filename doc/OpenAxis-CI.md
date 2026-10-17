@@ -73,3 +73,14 @@ staged executable's CLI help and real STEP import; Linux also slices a cube. The
 rendering or hardware input. Before a release, test an extracted package on a
 clean target machine: startup, slicing, Rotatrix navigation, mouse continuation,
 reconnect, focus/modal behavior, plater/preview switching and diagnostics.
+
+### OpenSSL compatibility for the pinned SDK
+
+PrusaSlicer 2.9.6 builds OpenSSL 1.1.0l. OpenAxis C++ rc.1 uses the newer
+one-shot `EVP_DigestVerify` API, which fails to compile against those headers.
+`cmake/openaxis-openssl-compat.patch` is applied to the fetched SDK and replaces
+that call with `EVP_DigestVerifyUpdate` followed by `EVP_DigestVerifyFinal`.
+ECDSA/SHA-256 verification, signature decoding and failure handling are retained;
+no verification is bypassed and the upstream dependency version is unchanged.
+Local SDK overrides must contain the same compatibility fix. Remove this patch
+when the pinned SDK release includes the equivalent upstream fix.
