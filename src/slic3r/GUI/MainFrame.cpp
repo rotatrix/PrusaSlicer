@@ -1,9 +1,9 @@
-///|/ Copyright (c) Prusa Research 2018 - 2023 Oleksandra Iushchenko @YuSanka, Lukáš Matěna @lukasmatena, David Kocík @kocikdav, Vojtěch Bubník @bubnikv, Tomáš Mészáros @tamasmeszaros, Enrico Turri @enricoturri1966, Filip Sykala @Jony01, Lukáš Hejl @hejllukas, Vojtěch Král @vojtechkral
+///|/ Copyright (c) Prusa Research 2018 - 2023 Oleksandra Iushchenko @YuSanka, LukÃ¡Å¡ MatÄ›na @lukasmatena, David KocÃ­k @kocikdav, VojtÄ›ch BubnÃ­k @bubnikv, TomÃ¡Å¡ MÃ©szÃ¡ros @tamasmeszaros, Enrico Turri @enricoturri1966, Filip Sykala @Jony01, LukÃ¡Å¡ Hejl @hejllukas, VojtÄ›ch KrÃ¡l @vojtechkral
 ///|/ Copyright (c) 2021 Jason Scurtu @xarbit
 ///|/ Copyright (c) 2019 John Drake @foxox
 ///|/
 ///|/ ported from lib/Slic3r/GUI/MainFrame.pm:
-///|/ Copyright (c) Prusa Research 2016 - 2019 Vojtěch Bubník @bubnikv, Vojtěch Král @vojtechkral, Oleksandra Iushchenko @YuSanka, Tomáš Mészáros @tamasmeszaros, Enrico Turri @enricoturri1966
+///|/ Copyright (c) Prusa Research 2016 - 2019 VojtÄ›ch BubnÃ­k @bubnikv, VojtÄ›ch KrÃ¡l @vojtechkral, Oleksandra Iushchenko @YuSanka, TomÃ¡Å¡ MÃ©szÃ¡ros @tamasmeszaros, Enrico Turri @enricoturri1966
 ///|/ Copyright (c) Slic3r 2014 - 2016 Alessandro Ranellucci @alranel
 ///|/ Copyright (c) 2014 Mark Hindess
 ///|/
@@ -598,6 +598,7 @@ void MainFrame::update_title()
     }
 
     title += wxString(build_id);
+    title += " - Rotatrix (unofficial build)";
     if (wxGetApp().is_editor())
         title += (" " + _L("based on Slic3r"));
 
