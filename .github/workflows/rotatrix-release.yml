@@ -34,10 +34,11 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          pattern: PrusaSlicer-Rotatrix-*-${{ github.sha }}
+          pattern: PrusaSlicer-Rotatrix-*
           merge-multiple: true
+          skip-decompress: true
           path: release-assets
       - name: Publish immutable tagged prerelease
         env:

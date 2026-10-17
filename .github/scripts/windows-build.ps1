@@ -46,7 +46,7 @@ if ($Stage -in @('build', 'all')) {
 if ($Stage -in @('package', 'all')) {
     $revision = (git rev-parse --short=12 HEAD).Trim()
     $packageName = "PrusaSlicer-Rotatrix-windows-x64-$revision"
-    $package = "$dist/$packageName"
+    $package = "$dist/PrusaSlicer"
     if (Test-Path -LiteralPath $package) { throw "Use a fresh package directory: $package" }
     New-Item -ItemType Directory -Path $package -Force | Out-Null
     $binaries = "$appBuild/src/Release"
@@ -60,18 +60,25 @@ if ($Stage -in @('package', 'all')) {
     Copy-Item -LiteralPath "$repo/resources" -Destination "$package/resources" -Recurse
     Copy-Item -LiteralPath "$repo/LICENSE" -Destination $package
     $notices = "$package/third-party-notices"
+    New-Item -ItemType Directory -Path $notices -Force | Out-Null
+    $noticeIndex = [System.Collections.Generic.List[object]]::new()
     foreach ($source in @("$repo/bundled_deps", $depsBuild, "$appBuild/_deps")) {
         if (Test-Path -LiteralPath $source) {
             Get-ChildItem -LiteralPath $source -File -Recurse |
                 Where-Object { $_.Name -match '^(LICENSE|COPYING|NOTICE)([.-].*)?$' } |
+                Sort-Object FullName |
                 ForEach-Object {
                     $relative = [System.IO.Path]::GetRelativePath($repo, $_.FullName)
-                    $target = Join-Path $notices $relative
-                    New-Item -ItemType Directory -Path (Split-Path $target) -Force | Out-Null
+                    # Build-tree paths can exceed Explorer's extraction limit.
+                    # Preserve every notice verbatim and map its short name to source.
+                    $name = '{0:D5}.txt' -f ($noticeIndex.Count + 1)
+                    $target = Join-Path $notices $name
                     Copy-Item -LiteralPath $_.FullName -Destination $target
+                    $noticeIndex.Add([pscustomobject]@{File=$name; Source=$relative})
                 }
         }
     }
+    $noticeIndex | Export-Csv -LiteralPath "$notices/index.csv" -NoTypeInformation -Encoding utf8
     $sdkRevision = (git -C "$appBuild/_deps/openaxis-src" rev-parse HEAD).Trim()
     @"
 PrusaSlicer - Rotatrix preview build (Windows x64)

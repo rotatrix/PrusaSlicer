@@ -32,6 +32,14 @@ instructions. A separate artifact retains configure/build/package logs on failur
 Checksums accompany the archives. Ubuntu packages require the listed system
 libraries on Ubuntu 24.04; they are not universal Linux distributions.
 
+Windows ZIPs and Linux tarballs are uploaded directly, without a second ZIP
+wrapper; checksums are separate downloadable files. Download the individual
+package artifact. Windows archives contain one short `PrusaSlicer/` folder.
+Third-party notices retain their original contents under short numbered names,
+with `third-party-notices/index.csv` mapping each name to its source path. This
+avoids embedding long dependency-build paths in Windows extraction paths.
+The release downloader preserves these files without unpacking the package ZIP.
+
 macOS uses `macos-app-<architecture>-<full-sha>.tar.gz` for all build types,
 uploaded directly without an outer ZIP. Its only top-level entry is the complete
 upstream-named `PrusaSlicer.app`; licenses and source metadata live inside it.
