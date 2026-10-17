@@ -12,7 +12,7 @@ on:
         description: Platform to build (use a single platform when debugging)
         type: choice
         default: all
-        options: [all, windows, macos, linux]
+        options: [all, windows, macos, macos-arm64, macos-x86_64, linux]
 
 permissions:
   contents: read
@@ -42,7 +42,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON('{"all":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"},{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"},{"platform":"linux-x64","runner":"ubuntu-24.04","script":"linux"}],"windows":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"}],"macos":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}],"linux":[{"platform":"linux-x64","runner":"ubuntu-24.04","script":"linux"}]}')[inputs.platform || 'all'] }}
+        include: ${{ fromJSON('{"all":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"},{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"},{"platform":"linux-x64","runner":"ubuntu-24.04","script":"linux"}],"windows":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"}],"macos":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}],"linux":[{"platform":"linux-x64","runner":"ubuntu-24.04","script":"linux"}],"macos-arm64":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"}],"macos-x86_64":[{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}]}')[inputs.platform || 'all'] }}
     defaults:
       run:
         shell: bash

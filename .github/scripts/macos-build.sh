@@ -85,6 +85,9 @@ package() {
     cmake "-DAPP=$app" "-DLIB_DIR=$PREFIX/lib" -P "$ROOT/.github/scripts/macos-bundle.cmake"
     # install_name_tool invalidates existing signatures; sign inner Mach-O files first.
     while IFS= read -r -d '' binary; do
+        # Signing the main executable also inspects its enclosing app. Its bundled
+        # libraries must already be signed; the outer codesign below signs it last.
+        [[ "$binary" == "$app/Contents/MacOS/$executable" ]] && continue
         if file "$binary" | grep -q 'Mach-O'; then
             codesign --force --sign - "$binary"
         fi
