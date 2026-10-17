@@ -1,15 +1,12 @@
-# OpenAxis integration for PrusaSlicer 2.9.6
+# Rotatrix navigation in PrusaSlicer 2.9.6
 
-This branch backports the Rotatrix OpenAxis integration to stable PrusaSlicer
-2.9.6. It uses the native `GLCanvas3D` and `Camera` APIs rather than the 3.0
-scene architecture. The adapter supports camera navigation in the plater and
-preview, perspective and orthographic projection, model/selection bounds,
-cursor/center surface picks, a transient pivot indicator and diagnostics.
+Camera navigation supports the plater, preview and G-code viewer, perspective
+and orthographic projection, selection-aware pivots and viewport diagnostics.
 
 Enable with `-DSLIC3R_OPENAXIS=ON`. CMake 3.24+ and Git fetch the published
 `cpp/v1.0.0-rc.1` SDK from https://github.com/rotatrix/openaxis.git. For SDK
 development, set `OPENAXIS_SOURCE_DIR` to a checkout containing `cpp/`.
-The feature defaults off and requires a native GUI build. See OpenAxis-CI.md
+The feature defaults off and requires a native GUI build. See [building](OpenAxis-build.md)
 for reproducible builds and package generation.
 
 Start Rotatrix 1.6+ with a profile matching `app.prusaslicer`. The connection
@@ -51,9 +48,3 @@ and corrections in the viewport. The toggle applies to all views and is not
 saved. Session logs are written by the SDK; use the Rotatrix log viewer. The
 green pivot marker is independent of diagnostics. It is depth tested per
 fragment: visible parts are opaque and occluded parts show through faintly.
-
-The standalone tests in tests/openaxis cover clipping and viewport/DPI mapping.
-Before distributing a build, verify physical-device navigation, native mouse
-continuation, reconnect, focus/modal behavior, plater/preview switching,
-perspective/orthographic views, picking and diagnostics on each target OS.
-See [the integration assessment](OpenAxis-assessment.md) for scope and coverage.

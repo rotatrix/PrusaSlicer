@@ -13,6 +13,6 @@ git merge-base --is-ancestor "refs/tags/$upstream_tag^{commit}" HEAD
 
 # Enable stable promotion only after documented native acceptance/onboarding.
 if [[ -z "$suffix" && "${ROTATRIX_STABLE_RELEASE_READY:-}" != true ]]; then
-    echo 'Final releases await native/device acceptance and verified platform release/signing onboarding. See doc/Rotatrix-workflow.md.' >&2
+    echo 'Final releases await native/device acceptance and verified platform release/signing onboarding.' >&2
     exit 1
 fi
