@@ -6,12 +6,15 @@ Set-Location $repo
 $depsBuild = if ($env:DEPS_BUILD_DIR) { $env:DEPS_BUILD_DIR } else { "$repo/deps/build-ci" }
 $appBuild = if ($env:BUILD_DIR) { $env:BUILD_DIR } else { "$repo/build-ci" }
 $dist = if ($env:DIST_DIR) { $env:DIST_DIR } else { "$repo/dist" }
+$jobs = if ($env:BUILD_JOBS) { [int]$env:BUILD_JOBS } else { 2 }
+if ($jobs -lt 1) { throw 'BUILD_JOBS must be positive.' }
 
 if ($Stage -in @('deps', 'all')) {
     cmake -S deps -B $depsBuild -G 'Visual Studio 17 2022' -A x64 `
-        -DCMAKE_BUILD_TYPE=Release -DDEP_DEBUG=OFF -DDEP_MAX_THREADS=2 `
+        -DCMAKE_BUILD_TYPE=Release -DDEP_DEBUG=OFF "-DDEP_MAX_THREADS=$jobs" `
         -DPrusaSlicer_deps_PACKAGE_EXCLUDES=
-    cmake --build $depsBuild --config Release --parallel 2
+    # Each dependency uses its own parallel build; avoid multiplying worker counts.
+    cmake --build $depsBuild --config Release --parallel 1
 }
 if ($Stage -in @('build', 'all')) {
     # Upstream detects mesh repair from the Windows SDK environment, not a CMake option.
@@ -28,9 +31,16 @@ if ($Stage -in @('build', 'all')) {
         -DCMAKE_BUILD_TYPE=Release -DSLIC3R_STATIC=ON -DSLIC3R_OPENAXIS=ON `
         -DOPENAXIS_SOURCE_DIR= -DSLIC3R_ENABLE_FORMAT_STEP=ON -DSLIC3R_PCH=ON `
         -DSLIC3R_BUILD_TESTS=OFF -DSLIC3R_RELEASE_DEBUG_SYMBOLS=OFF
-    cmake --build $appBuild --config Release --parallel 2
+    # /MP already parallelizes source files inside a project. Bound that count
+    # through _CL_ (appended after command-line /MP) and keep one MSBuild project
+    # active to avoid nested parallelism.
+    $previousCL = $env:_CL_
+    try {
+        $env:_CL_ = "$previousCL /MP$jobs"
+        cmake --build $appBuild --config Release --parallel 1
+    } finally { $env:_CL_ = $previousCL }
     cmake -S tests/openaxis -B "$appBuild/openaxis-checks" -G 'Visual Studio 17 2022' -A x64
-    cmake --build "$appBuild/openaxis-checks" --config Release --parallel 2
+    cmake --build "$appBuild/openaxis-checks" --config Release --parallel $jobs
     ctest --test-dir "$appBuild/openaxis-checks" -C Release --output-on-failure
 }
 if ($Stage -in @('package', 'all')) {

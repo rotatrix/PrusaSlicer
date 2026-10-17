@@ -8,8 +8,7 @@ BUILD_DIR="${BUILD_DIR:-$ROOT/build-ci}"
 DIST_DIR="${DIST_DIR:-$ROOT/dist}"
 export MACOSX_DEPLOYMENT_TARGET="${MACOSX_DEPLOYMENT_TARGET:-11.0}"
 ARCH="${ARCH:-$(uname -m)}"
-JOBS="${CMAKE_BUILD_PARALLEL_LEVEL:-2}"
-if (( JOBS > 2 )); then JOBS=2; fi
+JOBS="${BUILD_JOBS:-${CMAKE_BUILD_PARALLEL_LEVEL:-2}}"
 PREFIX="$DEPS_BUILD_DIR/destdir/usr/local"
 cd "$ROOT"
 [[ "$(uname -s)" == Darwin && "$(uname -m)" == "$ARCH" ]] || {
@@ -28,7 +27,7 @@ deps() {
         -DCMAKE_BUILD_TYPE=Release -DCMAKE_POLICY_VERSION_MINIMUM=3.5 \
         -DCMAKE_OSX_ARCHITECTURES="$ARCH" \
         -DCMAKE_OSX_DEPLOYMENT_TARGET="$MACOSX_DEPLOYMENT_TARGET" \
-        -DPrusaSlicer_deps_PACKAGE_EXCLUDES= -DDEP_MAX_THREADS=2
+        -DPrusaSlicer_deps_PACKAGE_EXCLUDES= -DDEP_MAX_THREADS="$JOBS"
     # Each dependency already builds in parallel; avoid simultaneous heavy builds.
     cmake --build "$DEPS_BUILD_DIR" --parallel 1
 }

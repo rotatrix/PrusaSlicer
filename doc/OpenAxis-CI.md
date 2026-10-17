@@ -12,7 +12,8 @@ when those headers are missing.
 
 Routine builds upload temporary artifacts, named with the source SHA and retained
 for 14 days. They create no tags or releases. To recover a failed full matrix,
-use GitHub's **Re-run failed jobs** or dispatch `all` again.
+use GitHub's **Re-run failed jobs** or dispatch only the failed platform. Avoid
+dispatching `all` while healthy jobs from an earlier run are still active.
 
 Permanent test builds require an explicit tag such as
 `version_2.9.6-rotatrix.1-beta.1`. The tagged release workflow builds all
@@ -66,7 +67,33 @@ Use a fresh packaging output directory. CMake is pinned in the workflow. The
 dependency cache includes platform and dependency/script hashes, and is saved
 after dependencies succeed so an application failure does not discard it.
 An older cache for the same platform and CMake version can seed a changed build;
-the dependency configure/build steps always run to bring it up to date.
+the dependency configure/build steps bring fallback restores up to date. Exact
+hits also match the hosted runner image version and skip dependency rebuilding.
+
+### Build performance
+
+Hosted jobs select `BUILD_JOBS` from available CPUs and memory: reserve 2 GiB,
+allow 2.5 GiB per compilation worker, and cap at eight workers. This is an initial
+budget, not a measured optimum. Logs record the hardware and selected count.
+Dependency projects run one at a time with parallel compilation inside each.
+Windows application builds similarly use one MSBuild project at a time with a
+bounded `/MP` count. Local scripts retain their two-worker default; explicitly
+set `BUILD_JOBS` to override it without changing any global tools or settings.
+
+Linux/macOS application compilation uses ccache, limited to 2 GiB per platform.
+Each run restores the newest platform cache and saves a new snapshot before
+packaging, including partial compilation after a build failure. Compiler contents
+and compilation inputs determine reuse; cache statistics are uploaded with logs.
+Precompiled headers remain enabled and ccache's correctness checks are not relaxed,
+so PCH-dependent compilations may remain uncacheable. Measure the reported hit rate
+before assuming a warm build will avoid all compilation. Windows retains the native
+Visual Studio generator, which does not support CMake compiler launchers; it has
+dependency caching but no application compiler cache yet.
+
+No persistent personal-machine runners are used. Full application build trees are
+not cached: packaging retries still configure/build, but can reuse cached Unix
+compilations. Packages and smoke tests are always regenerated for the current SHA.
+No feature, test, architecture or signing requirement is removed for performance.
 
 Build stages run the standalone OpenAxis viewport tests. Packaging runs the
 staged executable's CLI help and real STEP import; Linux also slices a cube. These do not verify GUI
