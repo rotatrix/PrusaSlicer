@@ -45,7 +45,7 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           repository: rotatrix/release-signing
-          ref: 12fdf48b46bd4a08cec57524872c2b72cd944854 # shared signing client
+          ref: 7657ec4d3c937ef92c5ccca7d32b7df9ce15b801 # source-owned entitlement client (signer PR #7)
           token: ${{ secrets.SIGNER_DISPATCH_TOKEN }}
           path: .signer
           persist-credentials: false
@@ -57,6 +57,7 @@ jobs:
           source-run-id: ${{ inputs.build-run-id }}
           artifact-ids: ${{ steps.select.outputs.mac-artifacts }}
           release-tag: ${{ inputs.release-tag }}
+          source-entitlements: src/platform/osx/entitlements.plist
           output-directory: promotion/signed
       - name: Create draft with final downloads and checksums
         env:
