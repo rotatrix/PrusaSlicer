@@ -30,3 +30,6 @@ __pycache__/
 /ci-logs/
 /deps-stable.log
 /configure-stable.log
+
+/.flatpak-builder/
+/build-flatpak*/

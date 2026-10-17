@@ -45,6 +45,7 @@ class PromotionChecks(unittest.TestCase):
     def test_all_required_platform_records_and_packages(self):
         names = promote.expected(SHA)
         self.assertEqual(len(names), 4)
+        self.assertIn(f'PrusaSlicer-Rotatrix-linux-x64-{SHA[:12]}.flatpak', names)
         self.assertFalse(any(n.startswith('build-') for n in names))
         self.assertFalse(any('installer' in n or 'double' in n for n in names))
         self.assertFalse(any('linux-arm64' in n or 'sources-' in n for n in names))

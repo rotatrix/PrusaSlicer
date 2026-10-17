@@ -56,7 +56,7 @@ def validate_run(run, sha):
 
 def expected(sha):
     return {f'PrusaSlicer-Rotatrix-windows-x64-{sha[:12]}.zip',
-            f'PrusaSlicer-Rotatrix-ubuntu-24.04-x64-{sha[:12]}.tar.gz',
+            f'PrusaSlicer-Rotatrix-linux-x64-{sha[:12]}.flatpak',
             f'macos-app-arm64-{sha}.tar.gz', f'macos-app-x86_64-{sha}.tar.gz'}
 
 

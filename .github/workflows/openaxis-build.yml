@@ -42,13 +42,14 @@ jobs:
           python3 .github/scripts/test-promotion.py
 
   desktop:
+    if: inputs.platform != 'linux'
     name: ${{ matrix.platform }}
     runs-on: ${{ matrix.runner }}
     timeout-minutes: 360
     strategy:
       fail-fast: false
       matrix:
-        include: ${{ fromJSON('{"all":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"},{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"},{"platform":"linux-x64","runner":"ubuntu-24.04","script":"linux"}],"windows":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"}],"macos":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}],"linux":[{"platform":"linux-x64","runner":"ubuntu-24.04","script":"linux"}],"macos-arm64":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"}],"macos-x86_64":[{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}]}')[inputs.platform || 'all'] }}
+        include: ${{ fromJSON('{"all":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"},{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}],"windows":[{"platform":"windows-x64","runner":"windows-2022","script":"windows"}],"macos":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"},{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}],"linux":[],"macos-arm64":[{"platform":"macos-arm64","runner":"macos-15","script":"macos"}],"macos-x86_64":[{"platform":"macos-x86_64","runner":"macos-15-intel","script":"macos"}]}')[inputs.platform || 'all'] }}
     defaults:
       run:
         shell: bash
@@ -71,11 +72,6 @@ jobs:
         run: mkdir -p ci-logs
       - name: Select build parallelism
         run: python .github/scripts/build-budget.py | tee ci-logs/build-budget.log
-      - name: Linux prerequisites
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y ccache build-essential autoconf automake libtool ninja-build pkg-config libglu1-mesa-dev libgtk-3-dev libdbus-1-dev libwebkit2gtk-4.1-dev texinfo gettext libudev-dev libhidapi-dev nasm xvfb xauth
       - name: macOS prerequisites
         if: runner.os == 'macOS'
         run: |
@@ -149,7 +145,7 @@ jobs:
         if: runner.os != 'macOS'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
         with:
-          path: dist/${{ runner.os == 'Windows' && '*.zip' || '*.tar.gz' }}
+          path: dist/*.zip
           archive: false
           if-no-files-found: error
           retention-days: 14
@@ -193,3 +189,59 @@ jobs:
             build-ci/openaxis-tests/Testing/Temporary/LastTest.log
           retention-days: 14
 
+
+  linux:
+    name: linux-x64
+    if: inputs.platform == 'all' || inputs.platform == 'linux'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify approved source commit
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ && "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]]
+      - name: Install Flatpak build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y flatpak flatpak-builder python3-yaml
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+      - uses: actions/cache@v4
+        with:
+          path: .flatpak-builder
+          key: flatpak-296-v1-${{ hashFiles('.github/scripts/flatpak-*') }}-${{ github.sha }}
+          restore-keys: |
+            flatpak-296-v1-${{ hashFiles('.github/scripts/flatpak-*') }}-
+      - name: Build upstream Flatpak and smoke test
+        run: |
+          mkdir -p ci-logs
+          bash .github/scripts/flatpak-build.sh 2>&1 | tee ci-logs/flatpak.log
+      - name: Upload Linux bundle directly
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          path: dist/*.flatpak
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload checksum
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          path: dist/*.sha256
+          archive: false
+          if-no-files-found: error
+          retention-days: 14
+      - name: Attest Linux bundle
+        if: github.repository == 'rotatrix/PrusaSlicer' && startsWith(github.ref, 'refs/heads/rotatrix/')
+        uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
+        with:
+          subject-path: dist/*.flatpak
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs-linux-x64-${{ github.sha }}
+          path: |
+            ci-logs/
+            build-flatpak-recipe/com.prusa3d.PrusaSlicer.json
+          retention-days: 14
