@@ -1,4 +1,4 @@
-# Copy into the source repo's .github/workflows/ on its DEFAULT branch.
+# Default-branch relay; never execute code from the promotion artifact.
 name: Request release signing
 on:
   workflow_run:
@@ -10,45 +10,52 @@ permissions:
 jobs:
   request:
     if: >-
-      github.repository_owner == 'rotatrix' &&
-      github.event.workflow_run.event == 'push' &&
+      github.repository == 'rotatrix/PrusaSlicer' &&
+      (github.event.workflow_run.event == 'push' || github.event.workflow_run.event == 'workflow_dispatch') &&
       github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-24.04
     environment: signing-dispatch
     steps:
-      # No checkout and no execution of code from the source artifact.
-      - name: Dispatch each release app artifact
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: release-promotion
+          repository: ${{ github.repository }}
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+          path: promotion
+          digest-mismatch: error
+      - name: Dispatch verified release app artifacts
         env:
           GH_TOKEN: ${{ github.token }}
-          ENTITLEMENTS_PATH: '' # Optional source plist path, e.g. resources/macos/entitlements.plist
           SIGNER_DISPATCH_TOKEN: ${{ secrets.SIGNER_DISPATCH_TOKEN }}
         shell: bash
         run: |
           python3 - <<'PY'
           import json, os, re, subprocess
-          event = json.load(open(os.environ["GITHUB_EVENT_PATH"]))
-          run = event["workflow_run"]
-          repo = event["repository"]["full_name"]
-          tag = run["head_branch"]
-          if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._-]*-rotatrix\.[1-9][0-9]*(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?", tag):
-              print("Not a release-tag build; nothing to sign.")
-              raise SystemExit(0)
-          pages = json.loads(subprocess.check_output([
-              "gh", "api", "--paginate", "--slurp",
-              f"repos/{repo}/actions/runs/{run['id']}/artifacts"], text=True))
-          artifacts = [a for p in pages for a in p["artifacts"]
-                       if re.fullmatch(r"macos-app-[A-Za-z0-9][A-Za-z0-9._-]{0,140}\.tar\.gz", a["name"])]
-          if not artifacts:
-              raise SystemExit("Release build has no standard macOS app artifacts")
-          if not os.environ.get("SIGNER_DISPATCH_TOKEN"):
-              raise SystemExit("Set SIGNER_DISPATCH_TOKEN in the signing-dispatch environment")
+          event = json.load(open(os.environ['GITHUB_EVENT_PATH']))
+          run = event['workflow_run']
+          record = json.load(open('promotion/promotion.json'))
+          repo = event['repository']['full_name']
+          tag = record['tag']
+          if (record['repository'] != repo or
+              run['repository']['id'] != event['repository']['id'] or
+              run['head_repository']['id'] != event['repository']['id'] or
+              run['path'] != '.github/workflows/rotatrix-release.yml' or
+              not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]*-rotatrix\.[1-9][0-9]*(?:-(?:alpha|beta|rc)\.[1-9][0-9]*)?', tag)):
+              raise SystemExit('Invalid release promotion identity')
+          artifacts = [a for a in record['artifacts'] if re.fullmatch(
+              r'macos-app-(arm64|x86_64)-[0-9a-f]{40}\.tar\.gz', a['name'])]
+          if len(artifacts) != 2:
+              raise SystemExit('Both Mac variants are required')
+          if not os.environ.get('SIGNER_DISPATCH_TOKEN'):
+              raise SystemExit('Set SIGNER_DISPATCH_TOKEN in the signing-dispatch environment')
           for artifact in artifacts:
-              payload = {"ref": "main", "inputs": {
-                  "source_repository": repo, "source_run_id": str(run["id"]),
-                  "artifact_id": str(artifact["id"]), "release_tag": tag, "publish": True,
-                  "entitlements_path": os.environ["ENTITLEMENTS_PATH"]}}
-              subprocess.run(["gh", "api", "--method", "POST",
-                  "repos/rotatrix/release-signing/actions/workflows/sign-macos.yml/dispatches",
-                  "--input", "-"], input=json.dumps(payload), text=True, check=True,
-                  env={**os.environ, "GH_TOKEN": os.environ["SIGNER_DISPATCH_TOKEN"]})
+              # The central signer independently verifies tag, run and attestation.
+              payload = {'ref': 'main', 'inputs': {
+                  'source_repository': repo, 'source_run_id': str(record['run_id']),
+                  'artifact_id': str(artifact['id']), 'release_tag': tag, 'publish': True}}
+              subprocess.run(['gh', 'api', '--method', 'POST',
+                  'repos/rotatrix/release-signing/actions/workflows/sign-macos.yml/dispatches',
+                  '--input', '-'], input=json.dumps(payload), text=True, check=True,
+                  env={**os.environ, 'GH_TOKEN': os.environ['SIGNER_DISPATCH_TOKEN']})
           PY

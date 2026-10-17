@@ -11,8 +11,8 @@ suffix=${BASH_REMATCH[3]}
 git rev-parse --verify "refs/tags/$upstream_tag^{commit}" >/dev/null
 git merge-base --is-ancestor "refs/tags/$upstream_tag^{commit}" HEAD
 
-# This work branch produces test packages. Do not ship them as final releases.
-if [[ -z "$suffix" ]]; then
+# Enable stable promotion only after documented native acceptance/onboarding.
+if [[ -z "$suffix" && "${ROTATRIX_STABLE_RELEASE_READY:-}" != true ]]; then
     echo 'Final releases await native/device acceptance and verified platform release/signing onboarding. See doc/Rotatrix-workflow.md.' >&2
     exit 1
 fi

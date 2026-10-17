@@ -22,7 +22,13 @@ for package in "${packages[@]}"; do
 done
 
 tag=${GITHUB_REF_NAME:?Release tag is required}
-[[ "$tag" =~ ^.+-rotatrix\.[1-9][0-9]*-(alpha|beta|rc)\.[1-9][0-9]*$ ]] || { echo 'Only explicit Rotatrix prerelease tags are supported by preview packaging' >&2; exit 1; }
+[[ "$tag" =~ ^.+-rotatrix\.[1-9][0-9]*(-(alpha|beta|rc)\.[1-9][0-9]*)?$ ]] || { echo 'Expected a Rotatrix release tag' >&2; exit 1; }
+release_options=()
+if [[ -n "${BASH_REMATCH[1]}" ]]; then
+  release_options+=(--prerelease)
+elif [[ "${ROTATRIX_STABLE_RELEASE_READY:-}" != true ]]; then
+  echo 'Stable release acceptance has not been enabled' >&2; exit 1
+fi
 # Listing fails closed on API/auth errors and includes drafts visible to this token.
 existing=$(gh api --paginate "repos/$GH_REPO/releases" --jq ".[] | select(.tag_name == \"$tag\") | [.draft, .prerelease, .target_commitish] | @tsv")
 if [[ -n "$existing" ]]; then
@@ -34,8 +40,10 @@ else
   cat > "$notes" <<EOF
 PrusaSlicer 2.9.6 OpenAxis preview built from commit $GITHUB_SHA.
 
-All three platforms passed build, OpenAxis tests and package smoke checks in the same Actions run:
-${GITHUB_SERVER_URL:-https://github.com}/$GH_REPO/actions/runs/${GITHUB_RUN_ID:?Run ID is required}
+All four platform variants passed build, OpenAxis tests and package smoke checks in the selected source run:
+${GITHUB_SERVER_URL:-https://github.com}/$GH_REPO/actions/runs/${SOURCE_BUILD_RUN_ID:-${GITHUB_RUN_ID:?Run ID is required}}
+
+Existing exact-commit packages were verified and promoted without recompilation.
 
 Packages include upstream features, including STEP import and Windows mesh repair.
 Windows is unsigned. Linux requires Ubuntu 24.04 system libraries.
@@ -44,6 +52,6 @@ after this source workflow succeeds, then attached to this release separately.
 
 GUI and Rotatrix hardware testing remain required before publication.
 EOF
-  gh release create "$tag" "${assets[@]}" --verify-tag --prerelease \
+  gh release create "$tag" "${assets[@]}" --verify-tag "${release_options[@]}" \
     --title "$tag" --notes-file "$notes"
 fi

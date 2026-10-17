@@ -1,46 +1,27 @@
-# Rotatrix maintained fork workflow
+# Rotatrix development and release workflow
 
-This checkout is development work on `rotatrix/work/version_2.9.6`, based on
-the official upstream release tag `version_2.9.6`. It is the primary Rotatrix
-line but not yet a maintained release. The work branch is the temporary GitHub
-default until the first maintained branch is ready. The exploratory
-`rotatrix/work/version_3.0.0-alpha11` branch tracks an upstream prerelease and
-is not a maintained line.
+The active and default branch is `rotatrix/work/version_2.9.6`, based on the
+upstream release tag `version_2.9.6`. No separate maintained branch is needed to
+ship previews or stable releases. The exploratory 3.0.0-alpha11 work is abandoned.
 
-## Branch lifecycle
+Work history may be rewritten with coordination, but published release tags must
+never move or disappear. Tags preserve each distributed commit despite later
+work-branch rewrites. Contributors target the active work branch.
 
-- `rotatrix/work/*`: disposable development; rebasing, squashing and deliberate
-  force pushes are allowed. Preserve other people's work when doing so.
-- `rotatrix/<upstream-tag>`: clean maintained patch stack. Mirror the exact
-  upstream tag, including prefixes. Once published or used by contributors,
-  append commits; never rewrite its existing history.
-- Maintain the current upstream release and at most one previous release where
-  useful. Use official upstream release tags as bases whenever possible.
-
-For a new upstream version, fetch official tags from the `upstream` remote and
-start `rotatrix/work/<tag>` from that tag. Port only the downstream patches,
-using the previous upstream/Rotatrix pair as a reference. Use `git range-diff`
-to compare the old and new patch stacks when helpful.
-
-When this version is ready, clean up the downstream commits on the work branch
-and create `rotatrix/version_2.9.6`. Publish that maintained branch and
-set it as GitHub's default. Do not promote it merely to obtain test builds.
-For later fixes, start a new work branch from the maintained branch, squash only
-the new work, and append the resulting clean commits to the maintained branch.
-
-Contributors branch from the relevant maintained branch and open PRs directly
-against it. Their own branch serves as their work branch. During this initial
-development phase, coordinate changes against the temporary default work branch;
-automatic PR builds target maintained branches only. Work-branch pushes and
-manual dispatch provide the current test builds.
+Clean up history on a separate branch when useful for upstream submission or
+porting; verify before adopting it. Squashing is not a release prerequisite.
+It creates a new SHA, so a cleaned commit needs its own build to be released.
+For a new upstream version, create its work branch from the official tag and port
+only the necessary patches, using the previous baseline and tagged release as
+references.
 
 ## CI and packages
 
-Normal CI runs on pushes to `rotatrix/**` and PRs targeting `rotatrix/*` (a
-single path segment, excluding `rotatrix/work/*`). It builds Windows x64,
-macOS ARM64/Intel and Linux x64, runs the OpenAxis tests and package smoke checks,
+Normal CI runs on pushes and PRs targeting `rotatrix/**`. It builds Windows x64,
+macOS ARM64/Intel and Linux x64, runs OpenAxis tests and package smoke checks,
 and uploads packages/checksums/logs with source SHAs and 14-day retention.
-Routine testing creates no release tags or draft releases.
+Trusted push/manual builds attest packages for later release promotion; PR builds
+are not eligible. Routine builds do not create tags or releases.
 
 Prefer upstream CI/build/dependency/package commands wherever practical. This
 upstream release delegates its builds to `Prusa-Development/PrusaSlicer-Actions`,
@@ -55,41 +36,41 @@ workflow and reporting daily failures.
 See [OpenAxis CI](OpenAxis-CI.md) for local reproduction, platform limitations,
 artifact downloads and manual hardware checks.
 
-## Immutable release tags
+## Immutable release tags and promotion
 
-Final tags are `<upstream-tag>-rotatrix.N`; reset N for each upstream version.
-For example, `version_2.9.6-rotatrix.1`. Never move or overwrite a shipped
-tag or its release assets. Create the tag on the corresponding maintained branch.
+Stable tags are `<upstream-tag>-rotatrix.N`; reset N for each upstream version.
+Preview tags append `-alpha.N`, `-beta.N` or `-rc.N`, for example
+`version_2.9.6-rotatrix.1-beta.1`. Tag the exact tested work-branch commit. Never
+move/delete a published tag or overwrite its release assets.
 
-If a test build needs permanent publication, use an explicit prerelease tag,
-for example `version_2.9.6-rotatrix.1-beta.1`. Supported suffixes are
-`alpha.N`, `beta.N` and `rc.N`. Pushing `*-rotatrix.*` runs release validation,
-then the full desktop build matrix and checksum verification, then publishes a
-GitHub prerelease. The source must descend from the upstream tag encoded in the
-release name. Existing releases are never updated by reruns.
+Pushing a release tag selects an existing successful full desktop build of that
+exact SHA, verifies its required jobs, package hashes and original attestations,
+then publishes existing Windows/Linux packages. The default-branch completion
+relay sends the selected original Mac build/artifact IDs to the central signer.
+The signer independently verifies original provenance and tag-to-SHA equality,
+then signs/notarizes and attaches Mac packages to that release. No recompilation
+occurs during promotion. A manual promotion retry accepts an existing tag and
+optional explicit source run ID. Missing eligible artifacts fail with instructions
+to explicitly build/test the tagged commit; they never trigger a hidden rebuild.
 
-No release tag is created as part of setup migration. Historical preview drafts
-are left untouched; the routine draft-creation workflow has been removed.
+See [OpenAxis CI](OpenAxis-CI.md) for the exact workflow and credential setup.
+No release tag or publication is authorized merely by implementing this workflow.
 
-## Before enabling final releases
+## Before enabling stable releases
 
-Final tags currently fail validation pending native acceptance and release
-onboarding. Builds enable upstream features, including STEP and Windows mesh
-repair. Branch/PR macOS apps are ad-hoc signed; tagged apps are handed to the
-central signer after the complete source workflow succeeds. Windows is unsigned
-and Linux requires Ubuntu 24.04 system libraries.
+The same promotion path supports stable tags after the repository Actions variable
+`ROTATRIX_STABLE_RELEASE_READY` is explicitly set to `true`. Until then stable
+validation fails. Preview publication remains available after acceptance and setup.
 
-Before removing that gate:
+1. Verify package completeness and all supported features/architectures.
+2. Configure `SIGNER_DISPATCH_TOKEN` in the source `signing-dispatch` environment
+   and verify the central signer's publication token covers PrusaSlicer. Apple
+   credentials stay only in the central service. Verify a real signed/notarized
+   package on a separate Mac. Windows packages currently remain unsigned.
+3. Verify GUI, slicing and hardware behavior on target machines. Linux packages
+   require Ubuntu 24.04 system libraries.
+4. Record acceptance, then enable the stable release variable. Stable releases
+   use verified existing packages without the GitHub prerelease flag.
 
-1. Adapt accessible upstream packaging or restore comparable full-featured
-   distributions, including the supported platform/architecture coverage.
-2. Configure the source signing-dispatch token/environment and verify that the
-   central signer's publication token covers PrusaSlicer. Apple credentials
-   remain in `rotatrix/release-signing`; do not create per-app Apple credentials.
-   Verify a real signed/notarized tag build and review Windows signing.
-3. Verify GUI, slicing and hardware behavior on clean target machines.
-4. Require final-tag commits to belong to the matching maintained branch, then
-   enable final publication (without `--prerelease`) using verified packages.
-
-The lifecycle remains upstream tag -> work branch -> CI artifacts -> clean
-maintained branch -> immutable release tag -> packaged/signed GitHub Release.
+Lifecycle: upstream tag -> work branch -> build/test packages -> immutable tag ->
+verify existing artifacts -> central signing and GitHub preview/stable release.

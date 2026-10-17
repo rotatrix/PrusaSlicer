@@ -15,16 +15,28 @@ for 14 days. They create no tags or releases. To recover a failed full matrix,
 use GitHub's **Re-run failed jobs** or dispatch only the failed platform. Avoid
 dispatching `all` while healthy jobs from an earlier run are still active.
 
-Permanent test builds require an explicit tag such as
-`version_2.9.6-rotatrix.1-beta.1`. The tagged release workflow builds all
-platforms, verifies Windows/Linux checksums, and publishes a GitHub prerelease.
-macOS archives receive GitHub build attestations on tags. After the complete
-source workflow succeeds, the default-branch `Request release signing` relay
-dispatches `rotatrix/release-signing`, which signs/notarizes and attaches the
-macOS assets to the same release without replacing Windows/Linux assets.
-It never overwrites an existing release. Final releases are deliberately blocked
-pending native acceptance and release onboarding; see the
-[fork lifecycle and release prerequisites](Rotatrix-workflow.md).
+Permanent previews use an immutable tag such as
+`version_2.9.6-rotatrix.1-beta.1` pointing at the tested work-branch commit.
+The tagged release workflow selects an existing successful full desktop build at
+that exact SHA, verifies all four platform jobs, artifact hashes and original build
+attestations, then publishes the Windows/Linux packages without recompilation.
+`workflow_dispatch` can retry an existing tag with an explicit `source_run_id`.
+Missing/expired artifacts, missing attestations or a mismatched SHA stop promotion;
+there is no automatic rebuild or cross-commit substitution. The initial implementation
+requires one complete successful run rather than combining partial platform runs.
+
+Builds on trusted Rotatrix branches now attest all package files at build time.
+PR builds cannot be promoted. The default-branch `Request release signing` relay
+reads the successful promotion record and dispatches the central signer using the
+original Mac build/artifact IDs. The signer verifies original branch provenance and
+the tag's exact SHA, signs/notarizes and attaches Mac packages to the same release.
+Checksums and verified provenance records are retained with the release.
+
+Stable tags use the same promotion path, with the repository Actions variable
+`ROTATRIX_STABLE_RELEASE_READY=true` required after native/device acceptance and
+release onboarding. It is not enabled by these changes. Beta/alpha/rc tags produce
+GitHub prereleases. Never move published tags or overwrite published assets.
+History cleanup is optional and separate; squashed commits require their own build.
 
 Download each package artifact from the Actions run. Windows ZIPs and Linux tarballs contain
 resources, dependency notices, source revision information and runtime setup

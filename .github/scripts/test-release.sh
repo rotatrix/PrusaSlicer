@@ -8,6 +8,7 @@ export GITHUB_SHA=0123456789012345678901234567890123456789
 export GH_REPO=rotatrix/PrusaSlicer GITHUB_RUN_ID=1
 export GITHUB_REF_NAME=version_2.9.6-rotatrix.1-beta.1
 bash "$root/.github/scripts/validate-release.sh"
+ROTATRIX_STABLE_RELEASE_READY=true GITHUB_REF_NAME=version_2.9.6-rotatrix.1 bash "$root/.github/scripts/validate-release.sh"
 for invalid in version_2.9.6-rotatrix.1 version_2.9.6-rotatrix.0-beta.1 invalid-rotatrix.1-beta.1; do
     if GITHUB_REF_NAME="$invalid" bash "$root/.github/scripts/validate-release.sh" >"$temporary/error" 2>&1; then
         echo "Unexpectedly accepted $invalid" >&2; exit 1
@@ -41,6 +42,11 @@ done
 bash "$root/.github/scripts/publish-prerelease.sh" "$PWD" >"$temporary/output"
 grep -q 'release create .*--verify-tag --prerelease' "$MOCK_GH_LOG"
 [[ $(wc -l < "$MOCK_GH_LOG") -eq 1 ]]
+ROTATRIX_STABLE_RELEASE_READY=true GITHUB_REF_NAME=version_2.9.6-rotatrix.1 bash "$root/.github/scripts/publish-prerelease.sh" "$PWD" >"$temporary/output"
+[[ $(wc -l < "$MOCK_GH_LOG") -eq 2 ]]
+if tail -1 "$MOCK_GH_LOG" | grep -q -- '--prerelease'; then
+    echo 'Stable release was marked prerelease' >&2; exit 1
+fi
 for state in existing failure; do
     if MOCK_GH_STATE="$state" bash "$root/.github/scripts/publish-prerelease.sh" "$PWD" >"$temporary/output" 2>&1; then
         echo "Unexpected publication with API state $state" >&2; exit 1
@@ -50,5 +56,5 @@ printf 'corrupt\n' >> "${packages[0]}"
 if bash "$root/.github/scripts/publish-prerelease.sh" "$PWD" >"$temporary/output" 2>&1; then
     echo 'Corrupt package was accepted' >&2; exit 1
 fi
-[[ $(wc -l < "$MOCK_GH_LOG") -eq 1 ]]
+[[ $(wc -l < "$MOCK_GH_LOG") -eq 2 ]]
 echo 'Release tag, checksum, API failure and immutability checks passed.'

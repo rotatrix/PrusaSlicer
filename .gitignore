@@ -26,6 +26,7 @@ CMakeUserPresets.json
 /build-ci/
 /dist/
 /artifacts/
+__pycache__/
 /ci-logs/
 /deps-stable.log
 /configure-stable.log

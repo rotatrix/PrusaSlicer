@@ -3,45 +3,79 @@ name: Rotatrix tagged release
 on:
   push:
     tags: ['*-rotatrix.*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing immutable release tag to promote
+        required: true
+        type: string
+      source_run_id:
+        description: Successful full build run (empty selects a matching successful run)
+        required: false
+        type: string
 
 permissions:
   contents: read
-  id-token: write
-  attestations: write
+  actions: read
+  attestations: read
 
 concurrency:
-  group: rotatrix-release-${{ github.ref }}
+  group: rotatrix-release-${{ inputs.release_tag || github.ref_name }}
   cancel-in-progress: false
 
 jobs:
-  validate:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - name: Validate tag and release readiness
-        run: bash .github/scripts/validate-release.sh
-
-  desktop:
-    needs: validate
-    uses: ./.github/workflows/openaxis-build.yml
-
-  publish:
-    needs: desktop
+  promote:
+    if: github.repository == 'rotatrix/PrusaSlicer'
     runs-on: ubuntu-24.04
     permissions:
       contents: write
+      actions: read
+      attestations: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ inputs.release_tag || github.ref_name }}
+      SOURCE_RUN_ID: ${{ inputs.source_run_id }}
+      ROTATRIX_STABLE_RELEASE_READY: ${{ vars.ROTATRIX_STABLE_RELEASE_READY }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.release_tag || github.ref_name }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Validate tag and release readiness
+        env:
+          GITHUB_REF_NAME: ${{ env.RELEASE_TAG }}
+        run: bash .github/scripts/validate-release.sh
+      - name: Select existing exact-commit build
+        id: source
+        run: python3 .github/scripts/promote-release.py select
       - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
-          pattern: PrusaSlicer-Rotatrix-*
+          repository: ${{ github.repository }}
+          run-id: ${{ steps.source.outputs.run_id }}
+          artifact-ids: ${{ steps.source.outputs.artifact_ids }}
+          github-token: ${{ github.token }}
           merge-multiple: true
           skip-decompress: true
+          digest-mismatch: error
           path: release-assets
-      - name: Publish immutable tagged prerelease
+      - name: Verify original build attestations and package hashes
+        run: python3 .github/scripts/promote-release.py verify
+      - name: Publish existing Windows and Linux packages
         env:
-          GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
-        run: bash .github/scripts/publish-prerelease.sh release-assets
+          GITHUB_SHA: ${{ steps.source.outputs.commit }}
+          GITHUB_REF_NAME: ${{ env.RELEASE_TAG }}
+          SOURCE_BUILD_RUN_ID: ${{ steps.source.outputs.run_id }}
+        run: |
+          python3 .github/scripts/promote-release.py recheck
+          bash .github/scripts/publish-prerelease.sh release-assets
+      - name: Preserve source build provenance with the release
+        run: gh release upload "$RELEASE_TAG" promotion.json release-assets/*.attestation.json --repo "$GH_REPO"
+      - name: Handoff verified source identities to the default-branch signer relay
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-promotion
+          path: promotion.json
+          if-no-files-found: error
+          retention-days: 14
