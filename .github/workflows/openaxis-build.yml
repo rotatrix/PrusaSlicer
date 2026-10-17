@@ -1,13 +1,12 @@
 name: OpenAxis desktop builds
 
 on:
-  push:
-    branches: ['rotatrix/**']
-  pull_request:
-    branches: ['rotatrix/**']
-  workflow_call:
   workflow_dispatch:
     inputs:
+      source_sha:
+        description: Approved full commit SHA (must match the selected branch revision)
+        type: string
+        required: true
       platform:
         description: Platform to build (use a single platform when debugging)
         type: choice
@@ -21,7 +20,7 @@ permissions:
 
 concurrency:
   group: openaxis-build-${{ github.ref }}-${{ inputs.platform || 'all' }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   release-checks:
@@ -30,9 +29,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Verify approved source commit
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ && "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]] || {
+            echo 'Selected branch revision differs from the approved full SHA.' >&2; exit 1;
+          }
       - name: Test release safeguards
         run: |
-          bash .github/scripts/test-release.sh
           python3 .github/scripts/test-promotion.py
 
   desktop:
@@ -48,6 +54,14 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      - name: Verify approved source commit
+        env:
+          EXPECTED_SHA: ${{ inputs.source_sha }}
+        shell: bash
+        run: |
+          [[ "$EXPECTED_SHA" =~ ^[0-9a-f]{40}$ && "$(git rev-parse HEAD)" == "$EXPECTED_SHA" ]] || {
+            echo 'Selected branch revision differs from the approved full SHA.' >&2; exit 1;
+          }
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
@@ -158,8 +172,8 @@ jobs:
       - name: Attest distributable packages
         if: >-
           github.repository == 'rotatrix/PrusaSlicer' &&
-          (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
-          (startsWith(github.ref, 'refs/heads/rotatrix/') || startsWith(github.ref, 'refs/tags/'))
+          github.event_name == 'workflow_dispatch' &&
+          startsWith(github.ref, 'refs/heads/rotatrix/')
         uses: actions/attest-build-provenance@43d14bc2b83dec42d39ecae14e916627a18bb661 # v3
         with:
           subject-path: |

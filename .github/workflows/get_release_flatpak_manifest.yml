@@ -8,11 +8,6 @@ on:
         required: true
         type: string
 
-  push:
-    tags:
-      - 'version_*'
-      - '!*-rotatrix.*'
-
 jobs:
   bundle_flatpak:
     uses: Prusa-Development/PrusaSlicer-Actions/.github/workflows/get_release_flatpak_manifest.yml@legacy

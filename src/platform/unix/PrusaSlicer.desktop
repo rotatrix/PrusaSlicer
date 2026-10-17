@@ -1,6 +1,5 @@
 [Desktop Entry]
-Name=PrusaSlicer - Rotatrix Build
-Comment=Unofficial PrusaSlicer build with Rotatrix integration
+Name=PrusaSlicer
 GenericName=3D Printing Software
 Icon=PrusaSlicer
 Exec=prusa-slicer %F

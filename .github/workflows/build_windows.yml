@@ -1,11 +1,6 @@
 name: Build windows
 
 on:
-  push:
-    branches-ignore:
-      - 'rotatrix/**'
-    tags-ignore:
-      - '*-rotatrix.*'
   workflow_dispatch:
     inputs:
       create_pdb:
