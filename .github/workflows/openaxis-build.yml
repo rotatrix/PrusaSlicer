@@ -214,6 +214,7 @@ jobs:
           restore-keys: |
             flatpak-296-v1-${{ hashFiles('.github/scripts/flatpak-*') }}-
       - name: Build upstream Flatpak and smoke test
+        shell: bash
         run: |
           mkdir -p ci-logs
           bash .github/scripts/flatpak-build.sh 2>&1 | tee ci-logs/flatpak.log

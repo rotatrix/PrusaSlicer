@@ -24,6 +24,10 @@ def adapt(recipe, sha):
         assert source.pop('tag') == 'version_2.9.6'
         source.update(url='https://github.com/rotatrix/PrusaSlicer.git', commit=sha)
         if module['name'] == 'PrusaSlicerDeps':
+            # The upstream host times out from GitHub runners; GNU serves identical bytes.
+            for dependency in module['sources']:
+                if dependency.get('url') == 'https://gmplib.org/download/gmp/gmp-6.2.1.tar.bz2':
+                    dependency['url'] = 'https://ftp.gnu.org/gnu/gmp/gmp-6.2.1.tar.bz2'
             module['build-commands'][0] = module['build-commands'][0].replace(
                 '-DDEP_WX_GTK3=1', '-DDEP_WX_GTK3=1 -DDEP_MAX_THREADS=2')
             continue
