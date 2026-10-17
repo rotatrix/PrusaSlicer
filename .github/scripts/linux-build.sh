@@ -61,9 +61,10 @@ package() {
         if [[ "$library" == "$PREFIX/"* || "$library" == "$BUILD_DIR/"* ]]; then
             cp -L "$library" "$STAGE/lib/"
         else
-            owner=$(dpkg-query -S "$library" 2>/dev/null | head -1 | sed 's/: \/.*//') || true
+            # dpkg-query may print diversion records before the actual package owner.
+            owner=$(dpkg-query -S "$library" 2>/dev/null | awk -F ': /' '$1 ~ /^[a-z0-9][a-z0-9+.-]*(:[a-z0-9][a-z0-9-]*)?$/ { print $1; exit }') || true
             if [[ -z "$owner" ]]; then
-                owner=$(dpkg-query -S "$(readlink -f "$library")" 2>/dev/null | head -1 | sed 's/: \/.*//') || true
+                owner=$(dpkg-query -S "$(readlink -f "$library")" 2>/dev/null | awk -F ': /' '$1 ~ /^[a-z0-9][a-z0-9+.-]*(:[a-z0-9][a-z0-9-]*)?$/ { print $1; exit }') || true
             fi
             if [[ -n "$owner" ]]; then
                 printf '%s\n' "$owner" >> "$STAGE/runtime-packages.txt"
