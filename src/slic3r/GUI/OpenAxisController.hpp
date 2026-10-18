@@ -1,9 +1,11 @@
+// Copied from oss-forks/shared/prusaslicer-family/OpenAxisController.hpp
+// Keep copies aligned; see that directory's README.md.
 #pragma once
 #include <memory>
 #include <optional>
 #include <string>
 #include "Camera.hpp"
-#include "GLModel.hpp"
+#include <vector>
 #include <openaxis/connection_manager.hpp>
 #include <openaxis/logging.hpp>
 #include <openaxis/navigation.hpp>
@@ -16,7 +18,8 @@ class OpenAxisScheduler;
 // current canvas (3D view or preview); transport and reconciliation remain in OpenAxis.
 class OpenAxisController final : public openaxis::NavigationAdapter {
   public:
-    explicit OpenAxisController(Camera &);
+    OpenAxisController(Camera &, const char *app_name, const char *log_name,
+                       std::vector<std::string> tags);
     ~OpenAxisController();
     static OpenAxisController *instance();
     // Refresh the bound canvas, focus, cursor and context from the plater.
@@ -36,6 +39,13 @@ class OpenAxisController final : public openaxis::NavigationAdapter {
     openaxis::WriteResult apply_pose(const openaxis::NavigationContext &, const openaxis::NavigationPose &,
                                     const openaxis::Value &, std::optional<openaxis::Vec3>) override;
     void show_pivot(const openaxis::NavigationContext &, std::optional<openaxis::Vec3>) override;
+    // Implemented in OpenAxisNative.cpp for this application.
+    static bool modal_dialog_open();
+    Camera &active_camera() const;
+    void initialize_native();
+    void context_changed();
+    struct NativeState;
+    std::shared_ptr<NativeState> m_native;
     std::string context_key() const;
     openaxis::Value fact(const std::string &);
     openaxis::Value pick(const std::string &name, bool inside);
@@ -46,6 +56,7 @@ class OpenAxisController final : public openaxis::NavigationAdapter {
     bool viewport_available() const;
     void render_overlay();
     Camera &m_camera;
+    std::vector<std::string> m_tags;
     std::shared_ptr<openaxis::DiagnosticLog> m_log;
     std::shared_ptr<OpenAxisScheduler> m_scheduler;
     std::shared_ptr<int> m_lifetime = std::make_shared<int>(0);
@@ -65,7 +76,6 @@ class OpenAxisController final : public openaxis::NavigationAdapter {
     bool m_focused = false;
     int m_x = -1, m_y = -1;
     std::optional<openaxis::Vec3> m_pivot;
-    GLModel m_pivot_fill, m_pivot_rim;
     bool m_diagnostics_visible = false;
 };
 } // namespace Slic3r::GUI

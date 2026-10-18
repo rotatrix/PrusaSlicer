@@ -509,7 +509,7 @@ target_compile_definitions(libslic3r_gui PRIVATE SLIC3R_CURRENTLY_COMPILING_GUI_
 
 include(${CMAKE_SOURCE_DIR}/cmake/OpenAxis.cmake)
 if(SLIC3R_OPENAXIS)
-    target_sources(libslic3r_gui PRIVATE GUI/OpenAxisController.cpp)
+    target_sources(libslic3r_gui PRIVATE GUI/OpenAxisController.cpp GUI/OpenAxisNative.cpp)
     target_link_libraries(libslic3r_gui PUBLIC OpenAxis::openaxis)
     target_compile_definitions(libslic3r_gui PUBLIC SLIC3R_OPENAXIS)
 endif()
