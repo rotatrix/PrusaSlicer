@@ -14,6 +14,7 @@
 #include <sstream>
 #include <cmath>
 #include <limits>
+#include <boost/log/trivial.hpp>
 
 namespace Slic3r::GUI {
 using openaxis::Value;
@@ -38,6 +39,11 @@ openaxis::OpenAxisClientOptions options(openaxis::Scheduler *scheduler) {
 // Modal dialogs belong to the active application, so activation alone does not
 // mean the viewport is receiving interaction.
 bool modal_dialog_open() {
+#ifdef __APPLE__
+    // Native Cocoa panels do not set wxDialog's IsShown()/IsModal() state.
+    if (wxDialog::OSXHasModalDialogsOpen())
+        return true;
+#endif
     for (auto *node = wxTopLevelWindows.GetFirst(); node; node = node->GetNext())
         if (auto *dialog = dynamic_cast<wxDialog *>(node->GetData()); dialog && dialog->IsShown() && dialog->IsModal())
             return true;
@@ -198,7 +204,13 @@ void OpenAxisController::poll() {
         m_session.cancel("focus_lost");
     if (m_focused != focused) {
         m_focused = focused;
-        m_connection.refresh_metadata();
+        try {
+            m_connection.refresh_metadata();
+        } catch (const std::exception &e) {
+            // A transport can retire during a focus change. Keep dispatching
+            // so the connection manager can process the loss and reconnect.
+            BOOST_LOG_TRIVIAL(warning) << "OpenAxis metadata refresh: " << e.what();
+        }
     }
     if (native_changed && m_focused && !m_writing_camera)
         m_session.native_camera_changed();
