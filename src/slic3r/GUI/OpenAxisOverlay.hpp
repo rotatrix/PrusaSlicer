@@ -1,3 +1,5 @@
+// Copied from oss-forks/shared/prusaslicer-family/OpenAxisOverlay.hpp
+// Keep copies aligned; see that directory's README.md.
 #pragma once
 #include <algorithm>
 #include <array>
@@ -5,6 +7,10 @@
 
 namespace Slic3r::GUI::OpenAxisOverlay {
 using Clip = std::array<double, 4>;
+// Convert logical SDK markers for hosts whose drawing API uses framebuffer pixels.
+inline std::array<double, 2> framebuffer_point(const std::array<double, 2>& logical, double scale) {
+    return {logical[0] * scale, logical[1] * scale};
+}
 struct Viewport {
     double x, y, width, height, framebuffer_height, scale;
     bool valid() const { return width > 0 && height > 0 && scale > 0; }

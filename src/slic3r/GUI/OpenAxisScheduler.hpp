@@ -1,3 +1,5 @@
+// Copied from oss-forks/shared/prusaslicer-family/OpenAxisScheduler.hpp
+// Keep copies aligned; see that directory's README.md.
 #pragma once
 #include <algorithm>
 #include <cmath>
