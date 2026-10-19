@@ -18,7 +18,7 @@ class OpenAxisScheduler;
 // current canvas (3D view or preview); transport and reconciliation remain in OpenAxis.
 class OpenAxisController final : public openaxis::NavigationAdapter {
   public:
-    OpenAxisController(Camera &, const char *app_name, const char *log_name,
+    OpenAxisController(Camera &, const char *app_name, const char *app_version, const char *log_name,
                        std::vector<std::string> tags);
     ~OpenAxisController();
     static OpenAxisController *instance();

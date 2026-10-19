@@ -22,21 +22,21 @@ namespace {
 OpenAxisController *s_instance = nullptr;
 openaxis::Vec3 vector(const Vec3d &v) { return {v.x(), v.y(), v.z()}; }
 Vec3d vector(openaxis::Vec3 v) { return {v.x, v.y, v.z}; }
-openaxis::OpenAxisClientOptions options(openaxis::Scheduler *scheduler, const char *app_name) {
+openaxis::OpenAxisClientOptions options(openaxis::Scheduler *scheduler, const char *app_name, const char *app_version) {
     openaxis::OpenAxisClientOptions o;
     o.client_name = app_name;
-    o.client_version = SLIC3R_VERSION;
+    o.client_version = app_version;
     o.scheduler = scheduler;
-    o.target = {{"pid", openaxis::current_process_id()}, {"app_version", SLIC3R_VERSION}};
+    o.target = {{"pid", openaxis::current_process_id()}, {"app_version", app_version}};
     return o;
 }
 } // namespace
 OpenAxisController *OpenAxisController::instance() { return s_instance; }
 OpenAxisController::OpenAxisController(Camera &camera, const char *app_name,
-                                       const char *log_name, std::vector<std::string> tags)
+                                       const char *app_version, const char *log_name, std::vector<std::string> tags)
     : m_camera(camera), m_tags(std::move(tags)),
-      m_log(openaxis::DiagnosticLog::configure(log_name, {}, SLIC3R_VERSION)),
-      m_scheduler(std::make_shared<OpenAxisScheduler>()), m_client(options(m_scheduler.get(), app_name)),
+      m_log(openaxis::DiagnosticLog::configure(log_name, {}, app_version)),
+      m_scheduler(std::make_shared<OpenAxisScheduler>()), m_client(options(m_scheduler.get(), app_name, app_version)),
       m_session(
           m_client, *this, &m_collector,
           [this] {

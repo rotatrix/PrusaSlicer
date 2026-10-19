@@ -763,7 +763,7 @@ void Plater::priv::init()
     view3D = new View3D(q, bed, &model, config, &background_process);
     preview = new Preview(q, bed, &model, config, &background_process, &gcode_results, [this]() { schedule_background_process(); });
 #ifdef SLIC3R_OPENAXIS
-    openaxis = std::make_unique<OpenAxisController>(camera, "PrusaSlicer", "prusaslicer", std::vector<std::string>{"app.prusaslicer"});
+    openaxis = std::make_unique<OpenAxisController>(camera, "PrusaSlicer", SLIC3R_VERSION, "prusaslicer", std::vector<std::string>{"app.prusaslicer"});
 #endif
 
     // set default view_toolbar icons size equal to GLGizmosManager::Default_Icons_Size
