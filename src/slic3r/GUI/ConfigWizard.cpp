@@ -1502,6 +1502,7 @@ PageUpdate::PageUpdate(ConfigWizard *parent)
     const AppConfig *app_config = wxGetApp().app_config;
     auto boldfont = wxGetApp().bold_font();
 
+#ifndef SLIC3R_OPENAXIS
     auto *box_slic3r = new wxCheckBox(this, wxID_ANY, _L("Check for application updates"));
     box_slic3r->SetValue(app_config->get("notify_release") != "none");
     append(box_slic3r);
@@ -1511,6 +1512,8 @@ PageUpdate::PageUpdate(ConfigWizard *parent)
          "This is only a notification mechanisms, no automatic installation is done."), SLIC3R_APP_NAME));
 
     append_spacer(VERTICAL_SPACING);
+
+#endif
 
     auto *box_presets = new wxCheckBox(this, wxID_ANY, _L("Update built-in Presets automatically"));
     box_presets->SetValue(app_config->get_bool("preset_update"));
@@ -1526,7 +1529,9 @@ PageUpdate::PageUpdate(ConfigWizard *parent)
     append(label_bold);
     append_text(_L("Additionally a backup snapshot of the whole configuration is created before an update is applied."));
 
+#ifndef SLIC3R_OPENAXIS
     box_slic3r->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent &event) { this->version_check = event.IsChecked(); });
+#endif
     box_presets->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent &event) { this->preset_update = event.IsChecked(); });
 }
 
@@ -3587,7 +3592,9 @@ bool ConfigWizard::priv::apply_config(AppConfig *app_config, PresetBundle *prese
 
     app_config->set_vendors(appconfig_new);
 
+#ifndef SLIC3R_OPENAXIS
     app_config->set("notify_release", page_update->version_check ? "all" : "none");
+#endif
     app_config->set("preset_update", page_update->preset_update ? "1" : "0");
     app_config->set("export_sources_full_pathnames", page_reload_from_disk->full_pathnames ? "1" : "0");
 

@@ -2725,7 +2725,9 @@ wxMenu* GUI_App::get_config_menu(MainFrame* main_frame)
         local_menu->Append(config_id_base + ConfigMenuSnapshots, _L("&Configuration Snapshots") + dots, _L("Inspect / activate configuration snapshots"));
         local_menu->Append(config_id_base + ConfigMenuTakeSnapshot, _L("Take Configuration &Snapshot"), _L("Capture a configuration snapshot"));
         local_menu->Append(config_id_base + ConfigMenuUpdateConf, _L("Check for Configuration Updates"), _L("Check for configuration updates"));
+#ifndef SLIC3R_OPENAXIS
         local_menu->Append(config_id_base + ConfigMenuUpdateApp, _L("Check for Application Updates"), _L("Check for new version of application"));
+#endif
 #if defined(__linux__) && defined(SLIC3R_DESKTOP_INTEGRATION) 
         //if (DesktopIntegrationDialog::integration_possible())
         local_menu->Append(config_id_base + ConfigMenuDesktopIntegration, _L("Desktop Integration"), _L("Desktop Integration"));    
@@ -3781,6 +3783,10 @@ void GUI_App::on_version_read(wxCommandEvent& evt)
 
 void GUI_App::app_updater(bool from_user)
 {
+#ifdef SLIC3R_OPENAXIS
+    // Rotatrix builds are updated manually from Help; ignore inherited updater preferences.
+    return;
+#endif
     DownloadAppData app_data = m_app_updater->get_app_data();
 
     if (from_user && (!app_data.version || *app_data.version <= *Semver::parse(SLIC3R_VERSION)))
@@ -3827,6 +3833,10 @@ void GUI_App::app_updater(bool from_user)
 
 void GUI_App::app_version_check(bool from_user)
 {
+#ifdef SLIC3R_OPENAXIS
+    // Rotatrix builds are updated manually from Help; ignore inherited updater preferences.
+    return;
+#endif
     if (from_user) {
         if (m_app_updater->get_download_ongoing()) {
             MessageDialog msgdlg(nullptr, _L("Downloading of the new version is in progress. Do you want to continue?"), _L("Notice"), wxYES_NO);

@@ -571,6 +571,7 @@ void PreferencesDialog::build()
 			L("If enabled, useful hints are displayed at startup."),
 			app_config->get_bool("show_hints"));
 
+#ifndef SLIC3R_OPENAXIS
 		append_enum_option<NotifyReleaseMode>(m_optgroup_gui, "notify_release",
 			L("Notify about new releases"),
 			L("You will be notified about new release after startup acordingly: All = Regular release and alpha / beta releases. Release only = regular release."),
@@ -579,6 +580,7 @@ void PreferencesDialog::build()
 			  { "release", L("Release only") },
 			  { "none", L("None") }
 			});
+#endif
 
 		m_optgroup_gui->append_separator();
 
@@ -591,9 +593,11 @@ void PreferencesDialog::build()
 	activate_options_tab(m_optgroup_gui);
 
 	if (is_editor) {
+#ifndef SLIC3R_OPENAXIS
 		// set Field for notify_release to its value to activate the object
 		boost::any val = s_keys_map_NotifyReleaseMode.at(app_config->get("notify_release"));
 		m_optgroup_gui->get_field("notify_release")->set_value(val, false);
+#endif
 
 		create_icon_size_slider();
 		m_icon_size_sizer->ShowItems(app_config->get_bool("use_custom_toolbar_size"));
