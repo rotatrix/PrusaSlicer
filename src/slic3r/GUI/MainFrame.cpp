@@ -1742,12 +1742,6 @@ void MainFrame::init_menubar_as_editor()
         append_menu_check_item(viewMenu, wxID_ANY, _L("Show Legen&d") + sep + "L", _L("Show legend in preview"),
             [this](wxCommandEvent&) { m_plater->show_legend(!m_plater->is_legend_shown()); }, this,
             [this]() { return m_plater->is_preview_shown(); }, [this]() { return m_plater->is_legend_shown(); }, this);
-#ifdef SLIC3R_OPENAXIS
-        append_menu_check_item(viewMenu, wxID_ANY, _L("OpenAxis &Diagnostics"), _L("Show OpenAxis navigation diagnostics in the viewport"),
-            [](wxCommandEvent&) { if (auto *openaxis = OpenAxisController::instance()) openaxis->toggle_diagnostics(); }, this,
-            []() { return OpenAxisController::instance() != nullptr; },
-            []() { auto *openaxis = OpenAxisController::instance(); return openaxis && openaxis->diagnostics_visible(); }, this);
-#endif
         append_menu_check_item(viewMenu, wxID_ANY, _L("&Collapse Sidebar") + sep + "Shift+" + sep_space + "Tab", _L("Collapse sidebar"),
             [this](wxCommandEvent&) { m_plater->collapse_sidebar(!m_plater->is_sidebar_collapsed()); }, this,
             []() { return true; }, [this]() { return m_plater->is_sidebar_collapsed(); }, this);
@@ -1759,6 +1753,13 @@ void MainFrame::init_menubar_as_editor()
                 wxFULLSCREEN_NOSTATUSBAR | wxFULLSCREEN_NOBORDER | wxFULLSCREEN_NOCAPTION); }, 
             this, []() { return true; }, [this]() { return this->IsFullScreen(); }, this);
 #endif // __APPLE__
+#ifdef SLIC3R_OPENAXIS
+        viewMenu->AppendSeparator();
+        append_menu_check_item(viewMenu, wxID_ANY, _L("OpenAxis &Diagnostics"), _L("Show OpenAxis navigation diagnostics in the viewport"),
+            [](wxCommandEvent&) { if (auto *openaxis = OpenAxisController::instance()) openaxis->toggle_diagnostics(); }, this,
+            []() { return OpenAxisController::instance() != nullptr; },
+            []() { auto *openaxis = OpenAxisController::instance(); return openaxis && openaxis->diagnostics_visible(); }, this);
+#endif
     }
 
     // Help menu
@@ -1882,6 +1883,7 @@ void MainFrame::init_menubar_as_gcodeviewer()
             [this](wxCommandEvent&) { m_plater->show_legend(!m_plater->is_legend_shown()); }, this,
             [this]() { return m_plater->is_preview_shown(); }, [this]() { return m_plater->is_legend_shown(); }, this);
 #ifdef SLIC3R_OPENAXIS
+        viewMenu->AppendSeparator();
         append_menu_check_item(viewMenu, wxID_ANY, _L("OpenAxis &Diagnostics"), _L("Show OpenAxis navigation diagnostics in the viewport"),
             [](wxCommandEvent&) { if (auto *openaxis = OpenAxisController::instance()) openaxis->toggle_diagnostics(); }, this,
             []() { return OpenAxisController::instance() != nullptr; },
