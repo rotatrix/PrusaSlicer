@@ -1369,7 +1369,7 @@ static wxMenu* generate_help_menu()
 
 #ifdef SLIC3R_OPENAXIS
     helpMenu->Append(wxID_ANY, wxString::FromUTF8(SLIC3R_BUILD_ID))->Enable(false);
-    append_menu_item(helpMenu, wxID_ANY, _L("Download Rotatrix builds…"),
+    append_menu_item(helpMenu, wxID_ANY, _L("Download Rotatrix builds") + dots,
         _L("Open the Rotatrix releases page in your browser"),
         [](wxCommandEvent&) { wxGetApp().open_browser_with_warning_dialog("https://github.com/rotatrix/PrusaSlicer/releases", nullptr, false); });
     helpMenu->AppendSeparator();
